@@ -48,12 +48,26 @@ def handle_email_reply(checker_config, email_data):
         return False
 
     try:
-        # Initialize the LLM
-        llm = LLMFactory.create(
-            provider=checker_config['llm_provider'],
-            api_key=checker_config['api_key'],
-            model=checker_config['model']
-        )
+        # Initialize the LLM with appropriate credentials
+        llm_args = {
+            'provider': checker_config['llm_provider'],
+            'model': checker_config['model']
+        }
+        
+        # Add provider-specific credentials
+        if checker_config['llm_provider'] == 'bedrock-anthropic':
+            llm_args.update({
+                'aws_access_key': checker_config['aws_access_key'],
+                'aws_secret_key': checker_config['aws_secret_key'],
+                'region': checker_config.get('aws_region', 'us-east-1')
+            })
+            if 'aws_session_token' in checker_config:
+                llm_args['aws_session_token'] = checker_config['aws_session_token']
+        else:
+            llm_args['api_key'] = checker_config['api_key']
+
+        # Initialize the LLM with the appropriate arguments
+        llm = LLMFactory.create(**llm_args)
 
         if not hasattr(llm, 'generate_sync'):
             logger.error(f"LLM provider {checker_config['llm_provider']} does not support synchronous generation")

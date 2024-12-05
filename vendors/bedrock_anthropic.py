@@ -14,14 +14,25 @@ class BedrockAnthropicLLM(BaseLLM):
     
     def __init__(
         self,
-        api_key: str,  # AWS credentials
-        model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        aws_access_key: str,  # AWS access key
+        aws_secret_key: str,  # AWS secret key
+        aws_session_token: str = None,  # Optional session token
         region: str = "us-east-1",
+        model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
         **kwargs
     ):
-        super().__init__(api_key, model, **kwargs)
+        # We'll pass None as api_key to parent since we're using AWS credentials
+        super().__init__(None, model, **kwargs)
         self.region = region
-        self.session = aioboto3.Session()
+        self.aws_credentials = {
+            'aws_access_key_id': aws_access_key,
+            'aws_secret_access_key': aws_secret_key,
+            'region_name': region
+        }
+        if aws_session_token:
+            self.aws_credentials['aws_session_token'] = aws_session_token
+        
+        self.session = aioboto3.Session(**self.aws_credentials)
         
     def _format_messages(self, messages: List[Message]) -> tuple[str, List[dict]]:
         """Format messages into Claude format and extract system prompt."""
@@ -90,28 +101,31 @@ class BedrockAnthropicLLM(BaseLLM):
                     async def response_generator():
                         async for event in response['body']:
                             chunk = json.loads(event['chunk']['bytes'].decode())
-                            if chunk['completion']:
+                            if 'content' in chunk:
                                 yield Message(
                                     role=RoleType.ASSISTANT,
                                     content=[Content(
                                         type=ContentType.TEXT,
-                                        data=chunk['completion']
+                                        data=chunk['content']
                                     )]
                                 )
                     return response_generator()
                 
+                # For non-streaming responses
                 response = await bedrock.invoke_model(
                     modelId=self.model,
                     body=json.dumps(request_body)
                 )
                 
-                response_body = json.loads(response['body'].read())
+                # Get the response body as bytes and decode it
+                response_bytes = await response['body'].read()
+                response_body = json.loads(response_bytes.decode())
                 
                 return Message(
                     role=RoleType.ASSISTANT,
                     content=[Content(
                         type=ContentType.TEXT,
-                        data=response_body['completion']
+                        data=response_body['content'][0]['text']
                     )]
                 )
                 
@@ -119,6 +133,7 @@ class BedrockAnthropicLLM(BaseLLM):
             if "ThrottlingException" in str(e):
                 await self.handle_rate_limit()
                 return await self.generate(messages, stream)
+            logger.error(f"Bedrock generation error: {str(e)}")
             raise e
 
     async def generate_embedding(
@@ -158,3 +173,16 @@ class BedrockAnthropicLLM(BaseLLM):
     async def handle_rate_limit(self) -> None:
         """Handle AWS Bedrock rate limiting."""
         await asyncio.sleep(1)  # AWS has different rate limiting patterns 
+
+    def generate_sync(
+        self,
+        messages: List[Message],
+        stream: bool = False
+    ) -> Message:
+        """Synchronous version of generate method."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(self.generate(messages, stream=stream))
+        finally:
+            loop.close()
