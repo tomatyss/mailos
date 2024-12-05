@@ -3,6 +3,7 @@ from typing import (
     AsyncIterator, Dict, List, Optional, Union, Any
 )
 from .models import Message, Tool, ModelConfig, Content
+import asyncio
 
 
 class BaseLLM(ABC):
@@ -75,3 +76,11 @@ class BaseLLM(ABC):
     async def handle_rate_limit(self) -> None:
         """Handle rate limiting for the specific vendor."""
         raise NotImplementedError("Rate limit handling not implemented for this model")
+
+    def generate_sync(
+        self,
+        messages: List[Message],
+        stream: bool = False
+    ) -> Message:
+        """Synchronous wrapper for generate method."""
+        return asyncio.run(self.generate(messages, stream=stream))

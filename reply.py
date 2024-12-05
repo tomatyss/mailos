@@ -55,6 +55,10 @@ def handle_email_reply(checker_config, email_data):
             model=checker_config['model']
         )
 
+        if not hasattr(llm, 'generate_sync'):
+            logger.error(f"LLM provider {checker_config['llm_provider']} does not support synchronous generation")
+            return False
+
         # Create the messages list
         messages = [
             Message(
@@ -74,8 +78,13 @@ def handle_email_reply(checker_config, email_data):
         ]
         
         # Get the response from LLM
-        response = llm.generate_sync(messages=messages)
-        response_text = response.content[0].data
+        response = llm.generate_sync(messages=messages, stream=False)
+        
+        if not response or not response.content:
+            logger.error("Empty response from LLM")
+            return False
+
+        response_text = response.content[0].data if isinstance(response.content, list) else response.content.data
 
         # Extract SMTP settings from IMAP settings
         smtp_server = checker_config['imap_server'].replace('imap', 'smtp')

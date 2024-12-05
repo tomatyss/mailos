@@ -1,4 +1,4 @@
-from typing import AsyncIterator, List, Union, Optional
+from typing import AsyncIterator, List, Union
 import json
 import asyncio
 import aioboto3
@@ -11,7 +11,7 @@ class BedrockAnthropicLLM(BaseLLM):
     def __init__(
         self,
         api_key: str,  # AWS credentials
-        model: str = "anthropic.claude-3-sonnet-20240229-v1:0",
+        model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
         region: str = "us-east-1",
         **kwargs
     ):
@@ -19,19 +19,39 @@ class BedrockAnthropicLLM(BaseLLM):
         self.region = region
         self.session = aioboto3.Session()
         
-    def _format_prompt(self, messages: List[Message]) -> str:
-        """Format messages into Claude prompt format."""
+    def _format_messages(self, messages: List[Message]) -> tuple[str, List[dict]]:
+        """Format messages into Claude format and extract system prompt."""
         formatted = []
+        system_prompt = None
         
         for msg in messages:
             if msg.role == RoleType.SYSTEM:
-                formatted.append(f"System: {msg.content[0].data}")
-            elif msg.role == RoleType.USER:
-                formatted.append(f"Human: {msg.content[0].data}")
-            elif msg.role == RoleType.ASSISTANT:
-                formatted.append(f"Assistant: {msg.content[0].data}")
+                system_prompt = msg.content[0].data
+                continue
                 
-        return "\n\n".join(formatted) + "\n\nAssistant:"
+            content = []
+            for c in msg.content:
+                if c.type == ContentType.TEXT:
+                    content.append({
+                        "type": "text",
+                        "text": c.data
+                    })
+                elif c.type == ContentType.IMAGE:
+                    content.append({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": c.mime_type or "image/jpeg",
+                            "data": c.data
+                        }
+                    })
+            
+            formatted.append({
+                "role": msg.role.value,
+                "content": content
+            })
+                
+        return system_prompt, formatted
 
     async def generate(
         self,
@@ -40,11 +60,13 @@ class BedrockAnthropicLLM(BaseLLM):
     ) -> Union[Message, AsyncIterator[Message]]:
         """Generate a response using Bedrock."""
         
-        prompt = self._format_prompt(messages)
+        system_prompt, formatted_messages = self._format_messages(messages)
         
         request_body = {
-            "prompt": prompt,
-            "max_tokens_to_sample": self.config.max_tokens or 4096,
+            "anthropic_version": "bedrock-2023-05-31",
+            "system": system_prompt,
+            "messages": formatted_messages,
+            "max_tokens": self.config.max_tokens or 4096,
             "temperature": self.config.temperature,
             "top_p": self.config.top_p,
         }

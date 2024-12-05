@@ -11,7 +11,7 @@ class OpenAILLM(BaseLLM):
     def __init__(
         self,
         api_key: str,
-        model: str = "gpt-4",
+        model: str = "gpt-4o",
         **kwargs
     ):
         super().__init__(api_key, model, **kwargs)
@@ -94,4 +94,9 @@ class OpenAILLM(BaseLLM):
         stream: bool = False
     ) -> Message:
         """Synchronous wrapper for generate()."""
-        return asyncio.run(self.generate(messages, stream))
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(self.generate(messages, stream))
+        finally:
+            loop.close()
