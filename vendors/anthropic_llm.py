@@ -1,10 +1,12 @@
-from typing import AsyncIterator, List, Union, Optional
+from typing import AsyncIterator, List, Union
 import anthropic
-import boto3
+
+from utils.logger_utils import setup_logger
 from .base import BaseLLM
 from .models import Message, Content, RoleType, ContentType
 import asyncio
 
+logger = setup_logger('anthropic_llm')
 
 class AnthropicLLM(BaseLLM):
     """Anthropic implementation of the LLM interface using direct API."""

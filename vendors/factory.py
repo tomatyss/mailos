@@ -4,6 +4,10 @@ from .openai_llm import OpenAILLM
 from .anthropic_llm import AnthropicLLM
 from .bedrock_anthropic import BedrockAnthropicLLM
 
+from utils.logger_utils import setup_logger
+
+logger = setup_logger('llm_factory')
+
 class LLMFactory:
     """Factory for creating LLM instances."""
     

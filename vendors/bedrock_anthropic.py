@@ -5,6 +5,10 @@ import aioboto3
 from .base import BaseLLM
 from .models import Message, Content, RoleType, ContentType
 
+from utils.logger_utils import setup_logger
+
+logger = setup_logger('bedrock_anthropic')
+
 class BedrockAnthropicLLM(BaseLLM):
     """Anthropic implementation using AWS Bedrock."""
     

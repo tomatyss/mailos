@@ -4,6 +4,9 @@ from .base import BaseLLM
 from .models import Message, Content, RoleType
 import asyncio
 
+from utils.logger_utils import setup_logger
+
+logger = setup_logger('openai_llm')
 
 class OpenAILLM(BaseLLM):
     """OpenAI implementation of the LLM interface."""

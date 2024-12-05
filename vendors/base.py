@@ -5,6 +5,9 @@ from typing import (
 from .models import Message, Tool, ModelConfig, Content
 import asyncio
 
+from utils.logger_utils import setup_logger
+
+logger = setup_logger('llm')
 
 class BaseLLM(ABC):
     """Abstract base class for LLM vendors."""
