@@ -23,17 +23,16 @@ def check_emails(checker_config):
         status, messages = mail.select('INBOX')
         logger.info(f"Inbox select status: {status}")
         
-        # Search for all emails from the last minute
-        date = (datetime.now().strftime("%d-%b-%Y"))
-        logger.info(f"Searching for emails since {date}")
-        result, data = mail.search(None, f'(SINCE "{date}")')
+        # Search for unread emails
+        logger.info("Searching for unread emails...")
+        result, data = mail.search(None, 'UNSEEN')
         
         if result == 'OK':
             if not data[0]:
-                logger.info("No new emails found")
+                logger.info("No unread emails found")
             else:
                 email_ids = data[0].split()
-                logger.info(f"Found {len(email_ids)} emails")
+                logger.info(f"Found {len(email_ids)} unread emails")
                 
                 for num in email_ids:
                     result, email_data = mail.fetch(num, '(RFC822)')
@@ -45,6 +44,9 @@ def check_emails(checker_config):
                             f"New email found: Subject='{email_message['subject']}' "
                             f"From='{email_message['from']}'"
                         )
+                        
+                        # Optionally mark as read after processing
+                        mail.store(num, '+FLAGS', '\\Seen')
                     else:
                         logger.error(f"Failed to fetch email {num}: {result}")
         else:

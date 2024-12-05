@@ -134,8 +134,10 @@ def check_email_app():
                 display_checkers(config)
             put_markdown('## ✅ Configuration Saved')
             
-            # Run checker immediately after adding new configuration
-            subprocess.Popen(['./.venv/bin/python', 'check_emails.py'])
+            # Run checker immediately using the existing scheduler
+            from check_emails import main
+            main()
+            toast("Initial check completed")
             
         except Exception as e:
             put_error(f'Failed to save configuration: {str(e)}')
