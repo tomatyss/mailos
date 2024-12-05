@@ -1,3 +1,5 @@
 pywebio
 apscheduler
 python-dotenv
+openai
+anthropic

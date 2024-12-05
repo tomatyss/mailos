@@ -8,6 +8,7 @@ import sys
 from utils.config_utils import load_config, save_config
 from apscheduler.schedulers.background import BackgroundScheduler
 from utils.logger_utils import setup_logger
+from reply import handle_email_reply, should_reply
 
 logger = setup_logger('email_checker')
 
@@ -47,6 +48,9 @@ def check_emails(checker_config):
                         
                         # Optionally mark as read after processing
                         mail.store(num, '+FLAGS', '\\Seen')
+                        
+                        if checker_config.get('auto_reply', False) and should_reply(email_message):
+                            handle_email_reply(checker_config, email_message)
                     else:
                         logger.error(f"Failed to fetch email {num}: {result}")
         else:
