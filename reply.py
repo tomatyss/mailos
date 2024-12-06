@@ -18,9 +18,10 @@ Subject: {email_data['subject']}
 Message: {email_data['body']}
 
 Please compose a professional and helpful response. Keep your response concise and relevant.
+Your response will be followed by the original message, so you don't need to quote it.
 """
 
-def send_email(smtp_server, smtp_port, sender_email, password, recipient, subject, body):
+def send_email(smtp_server, smtp_port, sender_email, password, recipient, subject, body, email_data):
     """Send an email using SMTP."""
     try:
         msg = MIMEMultipart()
@@ -28,7 +29,19 @@ def send_email(smtp_server, smtp_port, sender_email, password, recipient, subjec
         msg['To'] = recipient
         msg['Subject'] = f"Re: {subject}"
 
-        msg.attach(MIMEText(body, 'plain'))
+        # Combine AI response with quoted original message
+        full_message = (
+            f"{body}\n\n"
+            f"> -------- Original Message --------\n"
+            f"> Subject: {email_data['subject']}\n"
+            f"> Date: {email_data['msg_date']}\n"
+            f"> From: {email_data['from']}\n"
+            f"> Message-ID: {email_data['message_id']}\n"
+            f">\n"
+            f"> {email_data['body'].replace('\n', '\n> ')}"
+        )
+
+        msg.attach(MIMEText(full_message, 'plain'))
 
         with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
             server.login(sender_email, password)
@@ -112,7 +125,8 @@ def handle_email_reply(checker_config, email_data):
             password=checker_config['password'],
             recipient=email_data['from'],
             subject=email_data['subject'],
-            body=response_text
+            body=response_text,
+            email_data=email_data  # Pass the email_data to include in the reply
         )
 
         if success:

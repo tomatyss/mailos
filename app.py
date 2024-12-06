@@ -7,46 +7,11 @@ from check_emails import init_scheduler
 from utils.logger_utils import setup_logger
 from ui.checker_form import create_checker_form
 from ui.checker_list import display_checker_controls, display_checker
-from ui.controls import handle_global_control, handle_checker_action
+from ui.actions import handle_global_control, handle_checker_action
+from ui.display import display_checkers, refresh_display
 
 scheduler = None
 logger = setup_logger('web_app')
-
-def display_checkers(config):
-    if not config['checkers']:
-        put_markdown('### No email checkers configured yet')
-        return
-
-    put_markdown('### Configured Email Checkers')
-    
-    def on_filter_change(value):
-        clear('checker_list')
-        with use_scope('checker_list'):
-            for i, checker in enumerate(config['checkers']):
-                display_checker(i, checker, 
-                              lambda idx, action: handle_checker_action(idx, action, 
-                                                                     edit_callback=lambda x: create_checker_form(x, save_checker)),
-                              status_filter=value)
-    
-    # Add handler for global controls and filter
-    display_checker_controls(
-        lambda action: handle_global_control(action, refresh_display),
-        on_filter=on_filter_change
-    )
-    
-    # Initial display
-    with use_scope('checker_list'):
-        for i, checker in enumerate(config['checkers']):
-            display_checker(i, checker, 
-                          lambda idx, action: handle_checker_action(idx, action, 
-                                                                 edit_callback=lambda x: create_checker_form(x, save_checker)))
-    put_markdown('---')
-
-def refresh_display():
-    config = load_config()
-    clear('checkers')
-    with use_scope('checkers'):
-        display_checkers(config)
 
 def save_checker(index=None):
     try:
@@ -54,6 +19,7 @@ def save_checker(index=None):
         
         # Collect form data
         checker_config = {
+            'name': pin.checker_name,
             'monitor_email': pin.monitor_email,
             'password': pin.password,
             'imap_server': pin.imap_server,
@@ -112,7 +78,7 @@ def check_email_app():
     config = load_config()
     
     with use_scope('checkers'):
-        display_checkers(config)
+        display_checkers(config, save_checker)
     
     put_button('Add New Checker', onclick=lambda: create_checker_form(on_save=save_checker))
 

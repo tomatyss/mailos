@@ -26,6 +26,11 @@ def create_checker_form(index=None, on_save=None):
         put_grid([
             [span(put_markdown(f"### {'Edit' if index is not None else 'New'} Email Checker"), col=2)],
             [
+                put_input('checker_name', type='text', label='Checker Name',
+                         value=checker.get('name', '')),
+                None
+            ],
+            [
                 put_input('monitor_email', type='text', label='Email to monitor',
                          value=checker.get('monitor_email', '')),
                 put_input('password', type='password', label='Email password',
