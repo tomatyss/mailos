@@ -12,6 +12,22 @@ from reply import handle_email_reply, should_reply
 
 logger = setup_logger('email_checker')
 
+def get_email_body(email_message):
+    """Extract the email body from a potentially multipart message."""
+    if email_message.is_multipart():
+        for part in email_message.walk():
+            if part.get_content_type() == "text/plain":
+                try:
+                    return part.get_payload(decode=True).decode()
+                except:
+                    return part.get_payload()
+    else:
+        try:
+            return email_message.get_payload(decode=True).decode()
+        except:
+            return email_message.get_payload()
+    return ""
+
 def check_emails(checker_config):
     try:
         logger.info(f"Connecting to {checker_config['imap_server']}...")
@@ -41,16 +57,25 @@ def check_emails(checker_config):
                         email_body = email_data[0][1]
                         email_message = email.message_from_bytes(email_body)
                         
+                        # Create a properly formatted email_data dictionary
+                        parsed_email = {
+                            'from': email_message['from'],
+                            'subject': email_message['subject'],
+                            'body': get_email_body(email_message),
+                            'msg_date': email_message['date'],
+                            'message_id': email_message['message-id'] or f"generated-{num.decode()}"
+                        }
+                        
                         logger.info(
-                            f"New email found: Subject='{email_message['subject']}' "
-                            f"From='{email_message['from']}'"
+                            f"New email found: Subject='{parsed_email['subject']}' "
+                            f"From='{parsed_email['from']}'"
                         )
                         
                         # Optionally mark as read after processing
                         mail.store(num, '+FLAGS', '\\Seen')
                         
-                        if checker_config.get('auto_reply', False) and should_reply(email_message):
-                            handle_email_reply(checker_config, email_message)
+                        if checker_config.get('auto_reply', False) and should_reply(parsed_email):
+                            handle_email_reply(checker_config, parsed_email)
                     else:
                         logger.error(f"Failed to fetch email {num}: {result}")
         else:
