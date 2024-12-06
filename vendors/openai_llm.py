@@ -1,7 +1,7 @@
 from typing import AsyncIterator, List, Union
 from openai import OpenAI, RateLimitError
 from .base import BaseLLM
-from .models import Message, Content, RoleType
+from .models import Message, Content, RoleType, ContentType, LLMResponse
 import asyncio
 
 from utils.logger_utils import setup_logger
@@ -14,7 +14,7 @@ class OpenAILLM(BaseLLM):
     def __init__(
         self,
         api_key: str,
-        model: str = "gpt-4o",
+        model: str = "gpt-4",
         **kwargs
     ):
         super().__init__(api_key, model, **kwargs)
@@ -24,7 +24,7 @@ class OpenAILLM(BaseLLM):
         self,
         messages: List[Message],
         stream: bool = False
-    ) -> Union[Message, AsyncIterator[Message]]:
+    ) -> Union[LLMResponse, AsyncIterator[LLMResponse]]:
         """Generate a response using OpenAI's API."""
 
         formatted_messages = [
@@ -54,37 +54,29 @@ class OpenAILLM(BaseLLM):
                 async def response_generator():
                     async for chunk in response:
                         if chunk.choices[0].delta.content:
-                            yield Message(
-                                role=RoleType.ASSISTANT,
+                            yield LLMResponse(
                                 content=[Content(
-                                    type="text",
+                                    type=ContentType.TEXT,
                                     data=chunk.choices[0].delta.content
-                                )]
+                                )],
+                                model=self.model
                             )
                 return response_generator()
 
-            # Handle function calls
-            if response.choices[0].message.tool_calls:
-                tool_call = response.choices[0].message.tool_calls[0]
-                return Message(
-                    role=RoleType.ASSISTANT,
-                    content=[Content(
-                        type="text",
-                        data=response.choices[0].message.content or ""
-                    )],
-                    function_call={
-                        "name": tool_call.function.name,
-                        "arguments": tool_call.function.arguments
-                    }
-                )
-
-            # Handle regular responses
-            return Message(
-                role=RoleType.ASSISTANT,
+            # Create LLMResponse for completion
+            return LLMResponse(
                 content=[Content(
-                    type="text",
-                    data=response.choices[0].message.content
-                )]
+                    type=ContentType.TEXT,
+                    data=response.choices[0].message.content or ""
+                )],
+                model=self.model,
+                finish_reason=response.choices[0].finish_reason,
+                tool_calls=[{
+                    "name": tool_call.function.name,
+                    "arguments": tool_call.function.arguments
+                } for tool_call in response.choices[0].message.tool_calls] if response.choices[0].message.tool_calls else None,
+                usage=response.usage.model_dump() if response.usage else None,
+                system_fingerprint=response.system_fingerprint
             )
 
         except RateLimitError:
@@ -95,7 +87,7 @@ class OpenAILLM(BaseLLM):
         self,
         messages: List[Message],
         stream: bool = False
-    ) -> Message:
+    ) -> LLMResponse:
         """Synchronous wrapper for generate()."""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

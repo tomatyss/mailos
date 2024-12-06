@@ -137,7 +137,7 @@ def handle_email_reply(checker_config, email_data):
             logger.error("Empty response from LLM")
             return False
 
-        response_text = response.content[0].data if isinstance(response.content, list) else response.content.data
+        response_text = response.content[0].data
 
         # Extract SMTP settings from IMAP settings
         smtp_server = checker_config['imap_server'].replace('imap', 'smtp')
@@ -152,7 +152,7 @@ def handle_email_reply(checker_config, email_data):
             recipient=email_data['from'],
             subject=email_data['subject'],
             body=response_text,
-            email_data=email_data  # Pass the email_data to include in the reply
+            email_data=email_data
         )
 
         if success:

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import (
     AsyncIterator, Dict, List, Optional, Union, Any
 )
-from .models import Message, Tool, ModelConfig, Content
+from .models import Message, Tool, ModelConfig, Content, LLMResponse
 import asyncio
 
 from utils.logger_utils import setup_logger
@@ -24,7 +24,7 @@ class BaseLLM(ABC):
         self,
         messages: List[Message],
         stream: bool = False
-    ) -> Union[Message, AsyncIterator[Message]]:
+    ) -> Union[LLMResponse, AsyncIterator[LLMResponse]]:
         """Generate a response from the model."""
         pass
 
@@ -84,6 +84,6 @@ class BaseLLM(ABC):
         self,
         messages: List[Message],
         stream: bool = False
-    ) -> Message:
+    ) -> LLMResponse:
         """Synchronous wrapper for generate method."""
         return asyncio.run(self.generate(messages, stream=stream))

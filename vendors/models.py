@@ -72,3 +72,37 @@ class ModelConfig:
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
     stop_sequences: Optional[List[str]] = None 
+
+@dataclass
+class LLMResponse:
+    """Unified response model for all LLM providers."""
+    content: List[Content]
+    role: RoleType = RoleType.ASSISTANT
+    finish_reason: Optional[str] = None
+    tool_calls: Optional[List[Dict]] = None
+    usage: Optional[Dict[str, int]] = None
+    model: Optional[str] = None
+    system_fingerprint: Optional[str] = None
+    created_at: datetime = datetime.now()
+
+    def to_message(self) -> Message:
+        """Convert response to a Message object."""
+        return Message(
+            role=self.role,
+            content=self.content,
+            function_call=self.tool_calls[0] if self.tool_calls else None,
+            timestamp=self.created_at
+        )
+
+    def to_dict(self) -> Dict:
+        """Convert response to a dictionary."""
+        return {
+            "content": [c.to_dict() for c in self.content],
+            "role": self.role.value,
+            "finish_reason": self.finish_reason,
+            "tool_calls": self.tool_calls,
+            "usage": self.usage,
+            "model": self.model,
+            "system_fingerprint": self.system_fingerprint,
+            "created_at": self.created_at.isoformat()
+        }

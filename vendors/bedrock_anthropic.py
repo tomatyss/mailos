@@ -3,7 +3,7 @@ import json
 import asyncio
 import aioboto3
 from .base import BaseLLM
-from .models import Message, Content, RoleType, ContentType
+from .models import Message, Content, RoleType, ContentType, LLMResponse
 
 from utils.logger_utils import setup_logger
 
@@ -72,7 +72,7 @@ class BedrockAnthropicLLM(BaseLLM):
         self,
         messages: List[Message],
         stream: bool = False
-    ) -> Union[Message, AsyncIterator[Message]]:
+    ) -> Union[LLMResponse, AsyncIterator[LLMResponse]]:
         """Generate a response using Bedrock."""
         
         system_prompt, formatted_messages = self._format_messages(messages)
@@ -102,12 +102,12 @@ class BedrockAnthropicLLM(BaseLLM):
                         async for event in response['body']:
                             chunk = json.loads(event['chunk']['bytes'].decode())
                             if 'content' in chunk:
-                                yield Message(
-                                    role=RoleType.ASSISTANT,
+                                yield LLMResponse(
                                     content=[Content(
                                         type=ContentType.TEXT,
                                         data=chunk['content']
-                                    )]
+                                    )],
+                                    model=self.model
                                 )
                     return response_generator()
                 
@@ -117,16 +117,17 @@ class BedrockAnthropicLLM(BaseLLM):
                     body=json.dumps(request_body)
                 )
                 
-                # Get the response body as bytes and decode it
                 response_bytes = await response['body'].read()
                 response_body = json.loads(response_bytes.decode())
                 
-                return Message(
-                    role=RoleType.ASSISTANT,
+                return LLMResponse(
                     content=[Content(
                         type=ContentType.TEXT,
                         data=response_body['content'][0]['text']
-                    )]
+                    )],
+                    model=self.model,
+                    finish_reason=response_body.get('stop_reason'),
+                    usage=response_body.get('usage')
                 )
                 
         except Exception as e:
@@ -147,7 +148,7 @@ class BedrockAnthropicLLM(BaseLLM):
         self,
         image_data: bytes,
         prompt: str
-    ) -> Message:
+    ) -> LLMResponse:
         """Process an image (if supported by the model version)."""
         if "claude-3" not in self.model.lower():
             raise NotImplementedError("Image processing is only supported in Claude 3 models")
@@ -178,7 +179,7 @@ class BedrockAnthropicLLM(BaseLLM):
         self,
         messages: List[Message],
         stream: bool = False
-    ) -> Message:
+    ) -> LLMResponse:
         """Synchronous version of generate method."""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
