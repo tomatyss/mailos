@@ -1,6 +1,5 @@
-from pywebio.output import put_markdown, put_buttons, use_scope, put_grid, span, put_row, put_column, put_text
+from pywebio.output import put_markdown, put_buttons, use_scope, put_grid
 from pywebio.pin import put_select, pin_on_change
-from functools import partial
 
 def display_checker_controls(on_control, on_filter=None):
     """Display the top control buttons"""

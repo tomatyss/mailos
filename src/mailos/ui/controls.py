@@ -1,4 +1,4 @@
-from pywebio.output import toast, clear
+from pywebio.output import toast
 from utils.config_utils import load_config, save_config
 import check_emails
 from ui.display import refresh_display

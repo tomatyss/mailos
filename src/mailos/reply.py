@@ -1,10 +1,10 @@
-import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import smtplib
 from mailos.vendors.factory import LLMFactory
 from mailos.utils.logger_utils import setup_logger
 from mailos.vendors.models import Message, Content, RoleType
+
 
 logger = setup_logger('email_reply')
 

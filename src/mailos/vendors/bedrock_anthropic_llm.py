@@ -1,3 +1,4 @@
+import asyncio
 from typing import AsyncIterator, List, Union
 import json
 import boto3
@@ -85,48 +86,48 @@ class BedrockAnthropicLLM(BaseLLM):
         }
         
         try:
-            async with self.session.client(
+            # Create a regular client instead of using async context manager
+            bedrock = self.session.client(
                 service_name='bedrock-runtime',
                 region_name=self.region
-            ) as bedrock:
-                
-                if stream:
-                    response = await bedrock.invoke_model_with_response_stream(
-                        modelId=self.model,
-                        body=json.dumps(request_body)
-                    )
-                    
-                    async def response_generator():
-                        async for event in response['body']:
-                            chunk = json.loads(event['chunk']['bytes'].decode())
-                            if 'content' in chunk:
-                                yield LLMResponse(
-                                    content=[Content(
-                                        type=ContentType.TEXT,
-                                        data=chunk['content']
-                                    )],
-                                    model=self.model
-                                )
-                    return response_generator()
-                
-                # For non-streaming responses
-                response = await bedrock.invoke_model(
+            )
+            
+            if stream:
+                response = bedrock.invoke_model_with_response_stream(
                     modelId=self.model,
                     body=json.dumps(request_body)
                 )
                 
-                response_bytes = await response['body'].read()
-                response_body = json.loads(response_bytes.decode())
-                
-                return LLMResponse(
-                    content=[Content(
-                        type=ContentType.TEXT,
-                        data=response_body['content'][0]['text']
-                    )],
-                    model=self.model,
-                    finish_reason=response_body.get('stop_reason'),
-                    usage=response_body.get('usage')
-                )
+                async def response_generator():
+                    for event in response['body']:
+                        chunk = json.loads(event['chunk']['bytes'].decode())
+                        if 'content' in chunk:
+                            yield LLMResponse(
+                                content=[Content(
+                                    type=ContentType.TEXT,
+                                    data=chunk['content']
+                                )],
+                                model=self.model
+                            )
+                return response_generator()
+            
+            # For non-streaming responses
+            response = bedrock.invoke_model(
+                modelId=self.model,
+                body=json.dumps(request_body)
+            )
+            
+            response_body = json.loads(response['body'].read().decode())
+            
+            return LLMResponse(
+                content=[Content(
+                    type=ContentType.TEXT,
+                    data=response_body['content'][0]['text']
+                )],
+                model=self.model,
+                finish_reason=response_body.get('stop_reason'),
+                usage=response_body.get('usage')
+            )
                 
         except Exception as e:
             if "ThrottlingException" in str(e):
