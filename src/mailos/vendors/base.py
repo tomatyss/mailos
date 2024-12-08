@@ -5,7 +5,7 @@ from typing import (
 from .models import Message, Tool, ModelConfig, Content, LLMResponse
 import asyncio
 
-from utils.logger_utils import setup_logger
+from mailos.utils.logger_utils import setup_logger
 
 logger = setup_logger('llm')
 

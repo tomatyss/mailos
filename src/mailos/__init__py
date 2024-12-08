@@ -1,0 +1,21 @@
+"""
+MailOS - AI-powered email monitoring and response system
+"""
+
+from mailos.app import check_email_app
+from mailos.check_emails import init_scheduler, main as check_emails_main
+from mailos.utils.config_utils import load_config, save_config
+from mailos.vendors.factory import LLMFactory
+
+__version__ = "0.1.0"
+__author__ = "Ivan Iufriakov"
+__email__ = "tomatyss@gmail.com"
+
+__all__ = [
+    'check_email_app',
+    'init_scheduler',
+    'check_emails_main',
+    'load_config',
+    'save_config',
+    'LLMFactory'
+]

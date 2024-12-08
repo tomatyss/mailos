@@ -1,10 +1,7 @@
-from typing import Dict, Type
-from .base import BaseLLM
-from .openai_llm import OpenAILLM
-from .anthropic_llm import AnthropicLLM
-from .bedrock_anthropic import BedrockAnthropicLLM
-
-from utils.logger_utils import setup_logger
+from mailos.utils.logger_utils import setup_logger
+from mailos.vendors.openai_llm import OpenAILLM
+from mailos.vendors.anthropic_llm import AnthropicLLM
+from mailos.vendors.bedrock_anthropic_llm import BedrockAnthropicLLM
 
 logger = setup_logger('llm_factory')
 

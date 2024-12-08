@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mailos"
+version = "0.1.0"
+description = "An AI-powered email monitoring and response system"
+readme = "README.md"
+authors = [{ name = "Ivan Iufriakov", email = "tomatyss@gmail.com" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pywebio>=1.8.3",
+    "apscheduler>=3.11.0",
+    "python-dotenv>=1.0.1",
+    "openai>=1.57.0",
+    "anthropic>=0.40.0",
+    "aioboto3>=13.2.0",
+    "click>=8.1.7",
+]
+requires-python = ">=3.8"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-asyncio",
+    "black",
+    "isort",
+    "mypy",
+    "flake8"
+]
+
+[project.urls]
+Homepage = "https://github.com/tomatyss/mailos"
+Repository = "https://github.com/tomatyss/mailos.git"
+
+[project.scripts]
+mailos = "mailos.app:cli"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"

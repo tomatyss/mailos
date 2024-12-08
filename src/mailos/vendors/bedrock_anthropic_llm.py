@@ -1,13 +1,11 @@
 from typing import AsyncIterator, List, Union
 import json
-import asyncio
-import aioboto3
-from .base import BaseLLM
-from .models import Message, Content, RoleType, ContentType, LLMResponse
+import boto3
+from mailos.vendors.base import BaseLLM
+from mailos.vendors.models import Message, Content, RoleType, ContentType, LLMResponse
+from mailos.utils.logger_utils import setup_logger
 
-from utils.logger_utils import setup_logger
-
-logger = setup_logger('bedrock_anthropic')
+logger = setup_logger('bedrock_anthropic_llm')
 
 class BedrockAnthropicLLM(BaseLLM):
     """Anthropic implementation using AWS Bedrock."""
@@ -32,7 +30,7 @@ class BedrockAnthropicLLM(BaseLLM):
         if aws_session_token:
             self.aws_credentials['aws_session_token'] = aws_session_token
         
-        self.session = aioboto3.Session(**self.aws_credentials)
+        self.session = boto3.Session(**self.aws_credentials)
         
     def _format_messages(self, messages: List[Message]) -> tuple[str, List[dict]]:
         """Format messages into Claude format and extract system prompt."""

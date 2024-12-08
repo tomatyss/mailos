@@ -1,10 +1,9 @@
 from typing import AsyncIterator, List, Union
 from openai import OpenAI, RateLimitError
-from .base import BaseLLM
-from .models import Message, Content, RoleType, ContentType, LLMResponse
+from mailos.vendors.base import BaseLLM
+from mailos.vendors.models import Message, Content, RoleType, ContentType, LLMResponse
+from mailos.utils.logger_utils import setup_logger
 import asyncio
-
-from utils.logger_utils import setup_logger
 
 logger = setup_logger('openai_llm')
 

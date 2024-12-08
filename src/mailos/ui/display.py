@@ -1,8 +1,8 @@
 from pywebio.output import put_markdown, clear, use_scope
-from utils.config_utils import load_config
-from ui.checker_list import display_checker_controls, display_checker
-from ui.checker_form import create_checker_form
-from ui.actions import handle_checker_action, handle_global_control
+from mailos.utils.config_utils import load_config
+from mailos.ui.checker_list import display_checker_controls, display_checker
+from mailos.ui.checker_form import create_checker_form
+from mailos.ui.actions import handle_checker_action, handle_global_control
 
 def display_checkers(config, save_checker=None):
     if not config['checkers']:

@@ -1,14 +1,12 @@
 import imaplib
 import email
-import json
 from datetime import datetime
-import os
 import time
 import sys
-from utils.config_utils import load_config, save_config
+from mailos.utils.config_utils import load_config, save_config
 from apscheduler.schedulers.background import BackgroundScheduler
-from utils.logger_utils import setup_logger
-from reply import handle_email_reply, should_reply
+from mailos.utils.logger_utils import setup_logger
+from mailos.reply import handle_email_reply, should_reply
 
 logger = setup_logger('email_checker')
 

@@ -1,8 +1,8 @@
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.pin import *
-from utils.config_utils import load_config, save_config
-from vendors.factory import LLMFactory
+from mailos.utils.config_utils import load_config, save_config
+from mailos.vendors.factory import LLMFactory
 
 def create_checker_form(index=None, on_save=None):
     """Creates a form for new checker or editing existing one"""

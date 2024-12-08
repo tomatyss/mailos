@@ -2,13 +2,13 @@ from pywebio.input import *
 from pywebio.output import *
 from pywebio.pin import *
 from pywebio import start_server
-from utils.config_utils import load_config, save_config
-from check_emails import init_scheduler
-from utils.logger_utils import setup_logger
-from ui.checker_form import create_checker_form
-from ui.checker_list import display_checker_controls, display_checker
-from ui.actions import handle_global_control, handle_checker_action
-from ui.display import display_checkers, refresh_display
+from mailos.utils.config_utils import load_config, save_config
+from mailos.check_emails import init_scheduler
+from mailos.utils.logger_utils import setup_logger
+from mailos.ui.checker_form import create_checker_form
+from mailos.ui.checker_list import display_checker_controls, display_checker
+from mailos.ui.actions import handle_global_control, handle_checker_action
+from mailos.ui.display import display_checkers, refresh_display
 
 scheduler = None
 logger = setup_logger('web_app')
@@ -82,6 +82,10 @@ def check_email_app():
     
     put_button('Add New Checker', onclick=lambda: create_checker_form(on_save=save_checker))
 
-if __name__ == '__main__':
+def cli():
+    """CLI entry point for the application."""
     scheduler = init_scheduler()
-    start_server(check_email_app, port=8080, debug=True) 
+    start_server(check_email_app, port=8080, debug=True)
+
+if __name__ == '__main__':
+    cli() 

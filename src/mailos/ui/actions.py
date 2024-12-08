@@ -1,6 +1,6 @@
 from pywebio.output import toast
-from utils.config_utils import load_config, save_config
-import check_emails
+from mailos.utils.config_utils import load_config, save_config
+from mailos import check_emails
 
 def handle_global_control(action, refresh_callback):
     """Handle global control actions (start/pause/check all)"""
