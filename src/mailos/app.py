@@ -20,6 +20,7 @@ Example:
     ```
 """
 
+import logging
 from typing import Optional
 
 from pywebio import start_server
@@ -128,8 +129,25 @@ def check_email_app():
 
 def cli():
     """CLI entry point for the application."""
-    init_scheduler()
-    start_server(check_email_app, port=8080, debug=True)
+    # Add click options for log level
+    import click
+
+    @click.command()
+    @click.option(
+        "--log-level",
+        type=click.Choice(
+            ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False
+        ),
+        default="INFO",
+        help="Set the logging level",
+    )
+    def run(log_level):
+        log_level = getattr(logging, log_level.upper())
+        setup_logger("mailos", log_level)
+        init_scheduler()
+        start_server(check_email_app, port=8080, debug=True)
+
+    run()
 
 
 if __name__ == "__main__":

@@ -9,10 +9,15 @@ if not os.path.exists("logs"):
     os.makedirs("logs")
 
 
-def setup_logger(name):
-    """Set up logger for a given name."""
+def setup_logger(name, log_level=logging.INFO):
+    """Set up logger for a given name.
+
+    Args:
+        name (str): Logger name
+        log_level: Logging level (default: logging.INFO)
+    """
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(log_level)
 
     # Create handlers
     file_handler = RotatingFileHandler(
