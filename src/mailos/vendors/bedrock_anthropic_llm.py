@@ -1,16 +1,21 @@
-import asyncio
-from typing import AsyncIterator, List, Union
-import json
-import boto3
-from mailos.vendors.base import BaseLLM
-from mailos.vendors.models import Message, Content, RoleType, ContentType, LLMResponse
-from mailos.utils.logger_utils import setup_logger
+"""AWS Bedrock implementation of the LLM interface."""
 
-logger = setup_logger('bedrock_anthropic_llm')
+import asyncio
+import json
+from typing import AsyncIterator, List, Union
+
+import boto3
+
+from mailos.utils.logger_utils import setup_logger
+from mailos.vendors.base import BaseLLM
+from mailos.vendors.models import Content, ContentType, LLMResponse, Message, RoleType
+
+logger = setup_logger("bedrock_anthropic_llm")
+
 
 class BedrockAnthropicLLM(BaseLLM):
     """Anthropic implementation using AWS Bedrock."""
-    
+
     def __init__(
         self,
         aws_access_key: str,  # AWS access key
@@ -18,64 +23,58 @@ class BedrockAnthropicLLM(BaseLLM):
         aws_session_token: str = None,  # Optional session token
         region: str = "us-east-1",
         model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
-        **kwargs
+        **kwargs,
     ):
+        """Initialize BedrockAnthropicLLM instance."""
         # We'll pass None as api_key to parent since we're using AWS credentials
         super().__init__(None, model, **kwargs)
         self.region = region
         self.aws_credentials = {
-            'aws_access_key_id': aws_access_key,
-            'aws_secret_access_key': aws_secret_key,
-            'region_name': region
+            "aws_access_key_id": aws_access_key,
+            "aws_secret_access_key": aws_secret_key,
+            "region_name": region,
         }
         if aws_session_token:
-            self.aws_credentials['aws_session_token'] = aws_session_token
-        
+            self.aws_credentials["aws_session_token"] = aws_session_token
+
         self.session = boto3.Session(**self.aws_credentials)
-        
+
     def _format_messages(self, messages: List[Message]) -> tuple[str, List[dict]]:
         """Format messages into Claude format and extract system prompt."""
         formatted = []
         system_prompt = None
-        
+
         for msg in messages:
             if msg.role == RoleType.SYSTEM:
                 system_prompt = msg.content[0].data
                 continue
-                
+
             content = []
             for c in msg.content:
                 if c.type == ContentType.TEXT:
-                    content.append({
-                        "type": "text",
-                        "text": c.data
-                    })
+                    content.append({"type": "text", "text": c.data})
                 elif c.type == ContentType.IMAGE:
-                    content.append({
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": c.mime_type or "image/jpeg",
-                            "data": c.data
+                    content.append(
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": c.mime_type or "image/jpeg",
+                                "data": c.data,
+                            },
                         }
-                    })
-            
-            formatted.append({
-                "role": msg.role.value,
-                "content": content
-            })
-                
+                    )
+
+            formatted.append({"role": msg.role.value, "content": content})
+
         return system_prompt, formatted
 
     async def generate(
-        self,
-        messages: List[Message],
-        stream: bool = False
+        self, messages: List[Message], stream: bool = False
     ) -> Union[LLMResponse, AsyncIterator[LLMResponse]]:
         """Generate a response using Bedrock."""
-        
         system_prompt, formatted_messages = self._format_messages(messages)
-        
+
         request_body = {
             "anthropic_version": "bedrock-2023-05-31",
             "system": system_prompt,
@@ -84,51 +83,51 @@ class BedrockAnthropicLLM(BaseLLM):
             "temperature": self.config.temperature,
             "top_p": self.config.top_p,
         }
-        
+
         try:
             # Create a regular client instead of using async context manager
             bedrock = self.session.client(
-                service_name='bedrock-runtime',
-                region_name=self.region
+                service_name="bedrock-runtime", region_name=self.region
             )
-            
+
             if stream:
                 response = bedrock.invoke_model_with_response_stream(
-                    modelId=self.model,
-                    body=json.dumps(request_body)
+                    modelId=self.model, body=json.dumps(request_body)
                 )
-                
+
                 async def response_generator():
-                    for event in response['body']:
-                        chunk = json.loads(event['chunk']['bytes'].decode())
-                        if 'content' in chunk:
+                    for event in response["body"]:
+                        chunk = json.loads(event["chunk"]["bytes"].decode())
+                        if "content" in chunk:
                             yield LLMResponse(
-                                content=[Content(
-                                    type=ContentType.TEXT,
-                                    data=chunk['content']
-                                )],
-                                model=self.model
+                                content=[
+                                    Content(
+                                        type=ContentType.TEXT, data=chunk["content"]
+                                    )
+                                ],
+                                model=self.model,
                             )
+
                 return response_generator()
-            
+
             # For non-streaming responses
             response = bedrock.invoke_model(
-                modelId=self.model,
-                body=json.dumps(request_body)
+                modelId=self.model, body=json.dumps(request_body)
             )
-            
-            response_body = json.loads(response['body'].read().decode())
-            
+
+            response_body = json.loads(response["body"].read().decode())
+
             return LLMResponse(
-                content=[Content(
-                    type=ContentType.TEXT,
-                    data=response_body['content'][0]['text']
-                )],
+                content=[
+                    Content(
+                        type=ContentType.TEXT, data=response_body["content"][0]["text"]
+                    )
+                ],
                 model=self.model,
-                finish_reason=response_body.get('stop_reason'),
-                usage=response_body.get('usage')
+                finish_reason=response_body.get("stop_reason"),
+                usage=response_body.get("usage"),
             )
-                
+
         except Exception as e:
             if "ThrottlingException" in str(e):
                 await self.handle_rate_limit()
@@ -137,49 +136,45 @@ class BedrockAnthropicLLM(BaseLLM):
             raise e
 
     async def generate_embedding(
-        self,
-        content: Union[str, List[str]]
+        self, content: Union[str, List[str]]
     ) -> Union[List[float], List[List[float]]]:
         """Generate embeddings (not supported in Bedrock)."""
-        raise NotImplementedError("Bedrock does not support embeddings for Anthropic models")
+        raise NotImplementedError(
+            "Bedrock does not support embeddings for Anthropic models"
+        )
 
-    async def process_image(
-        self,
-        image_data: bytes,
-        prompt: str
-    ) -> LLMResponse:
+    async def process_image(self, image_data: bytes, prompt: str) -> LLMResponse:
         """Process an image (if supported by the model version)."""
         if "claude-3" not in self.model.lower():
-            raise NotImplementedError("Image processing is only supported in Claude 3 models")
-            
+            raise NotImplementedError(
+                "Image processing is only supported in Claude 3 models"
+            )
+
         messages = [
             Message(
                 role=RoleType.USER,
                 content=[
                     Content(type=ContentType.IMAGE, data=image_data),
-                    Content(type=ContentType.TEXT, data=prompt)
-                ]
+                    Content(type=ContentType.TEXT, data=prompt),
+                ],
             )
         ]
         return await self.generate(messages)
 
-    async def transcribe_audio(
-        self,
-        audio_data: bytes
-    ) -> str:
+    async def transcribe_audio(self, audio_data: bytes) -> str:
         """Transcribe audio (not supported)."""
-        raise NotImplementedError("Bedrock does not support audio transcription for Anthropic models")
+        raise NotImplementedError(
+            "Bedrock does not support audio transcription for Anthropic models"
+        )
 
     async def handle_rate_limit(self) -> None:
         """Handle AWS Bedrock rate limiting."""
-        await asyncio.sleep(1)  # AWS has different rate limiting patterns 
+        await asyncio.sleep(1)  # AWS has different rate limiting patterns
 
     def generate_sync(
-        self,
-        messages: List[Message],
-        stream: bool = False
+        self, messages: List[Message], stream: bool = False
     ) -> LLMResponse:
-        """Synchronous version of generate method."""
+        """Synchronize version of generate method."""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:

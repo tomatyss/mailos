@@ -1,31 +1,29 @@
-from typing import AsyncIterator, List, Union
-import anthropic
-from mailos.vendors.base import BaseLLM
-from mailos.vendors.models import Message, Content, RoleType, ContentType, LLMResponse
-from mailos.utils.logger_utils import setup_logger
-import asyncio
+"""Anthropic implementation of the LLM interface."""
 
-logger = setup_logger('anthropic_llm')
+import asyncio
+from typing import AsyncIterator, List, Union
+
+import anthropic
+
+from mailos.utils.logger_utils import setup_logger
+from mailos.vendors.base import BaseLLM
+from mailos.vendors.models import Content, ContentType, LLMResponse, Message, RoleType
+
+logger = setup_logger("anthropic_llm")
+
 
 class AnthropicLLM(BaseLLM):
     """Anthropic implementation of the LLM interface using direct API."""
 
-    def __init__(
-        self,
-        api_key: str,
-        model: str = "claude-3-sonnet-20240229",
-        **kwargs
-    ):
+    def __init__(self, api_key: str, model: str = "claude-3-sonnet-20240229", **kwargs):
+        """Initialize AnthropicLLM instance."""
         super().__init__(api_key, model, **kwargs)
         self.client = anthropic.AsyncAnthropic(api_key=api_key)
 
     async def generate(
-        self,
-        messages: List[Message],
-        stream: bool = False
+        self, messages: List[Message], stream: bool = False
     ) -> Union[LLMResponse, AsyncIterator[LLMResponse]]:
         """Generate a response using Anthropic's API."""
-
         system_prompt, formatted_messages = self._format_messages(messages)
 
         try:
@@ -41,62 +39,54 @@ class AnthropicLLM(BaseLLM):
 
             if stream:
                 stream_response = await self.client.messages.create(
-                    **kwargs,
-                    stream=True
+                    **kwargs, stream=True
                 )
 
                 async def response_generator():
                     async for chunk in stream_response:
                         if chunk.delta.text:
                             yield LLMResponse(
-                                content=[Content(
-                                    type=ContentType.TEXT,
-                                    data=chunk.delta.text
-                                )],
-                                model=self.model
+                                content=[
+                                    Content(
+                                        type=ContentType.TEXT, data=chunk.delta.text
+                                    )
+                                ],
+                                model=self.model,
                             )
+
                 return response_generator()
 
             response = await self.client.messages.create(**kwargs)
 
             return LLMResponse(
-                content=[Content(
-                    type=ContentType.TEXT,
-                    data=response.content[0].text
-                )],
+                content=[Content(type=ContentType.TEXT, data=response.content[0].text)],
                 model=self.model,
                 finish_reason=response.stop_reason,
                 usage=response.usage,
-                system_fingerprint=response.id
+                system_fingerprint=response.id,
             )
 
         except anthropic.RateLimitError:
             await self.handle_rate_limit()
             return await self.generate(messages, stream)
 
-    async def process_image(
-        self,
-        image_data: bytes,
-        prompt: str
-    ) -> LLMResponse:
+    async def process_image(self, image_data: bytes, prompt: str) -> LLMResponse:
         """Process an image with Claude."""
         messages = [
             Message(
                 role=RoleType.USER,
                 content=[
                     Content(type=ContentType.IMAGE, data=image_data),
-                    Content(type=ContentType.TEXT, data=prompt)
-                ]
+                    Content(type=ContentType.TEXT, data=prompt),
+                ],
             )
         ]
         return await self.generate(messages)
 
     def generate_sync(
-        self,
-        messages: List[Message],
-        stream: bool = False
+        self, messages: List[Message], stream: bool = False
     ) -> LLMResponse:
-        """Synchronous wrapper for generate method."""
+        """Generate response synchronously by wrapping async method."""
         if stream:
             raise ValueError("Streaming is not supported in synchronous mode")
         loop = asyncio.new_event_loop()
@@ -124,23 +114,19 @@ class AnthropicLLM(BaseLLM):
             content = []
             for c in msg.content:
                 if c.type == ContentType.TEXT:
-                    content.append({
-                        "type": "text",
-                        "text": c.data
-                    })
+                    content.append({"type": "text", "text": c.data})
                 elif c.type == ContentType.IMAGE:
-                    content.append({
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": c.mime_type or "image/jpeg",
-                            "data": c.data
+                    content.append(
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": c.mime_type or "image/jpeg",
+                                "data": c.data,
+                            },
                         }
-                    })
+                    )
 
-            formatted.append({
-                "role": msg.role.value,
-                "content": content
-            })
+            formatted.append({"role": msg.role.value, "content": content})
 
         return system_prompt, formatted

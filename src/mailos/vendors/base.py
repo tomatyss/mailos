@@ -1,18 +1,21 @@
-from abc import ABC, abstractmethod
-from typing import (
-    AsyncIterator, Dict, List, Optional, Union, Any
-)
-from .models import Message, Tool, ModelConfig, Content, LLMResponse
+"""Base class for LLM vendors."""
+
 import asyncio
+from abc import ABC, abstractmethod
+from typing import Any, AsyncIterator, Dict, List, Union
 
 from mailos.utils.logger_utils import setup_logger
 
-logger = setup_logger('llm')
+from .models import LLMResponse, Message, ModelConfig, Tool
+
+logger = setup_logger("llm")
+
 
 class BaseLLM(ABC):
     """Abstract base class for LLM vendors."""
 
     def __init__(self, api_key: str, model: str, **kwargs):
+        """Initialize BaseLLM instance."""
         self.api_key = api_key
         self.model = model
         self.config = ModelConfig(**kwargs)
@@ -21,32 +24,22 @@ class BaseLLM(ABC):
 
     @abstractmethod
     async def generate(
-        self,
-        messages: List[Message],
-        stream: bool = False
+        self, messages: List[Message], stream: bool = False
     ) -> Union[LLMResponse, AsyncIterator[LLMResponse]]:
         """Generate a response from the model."""
         pass
 
     async def generate_embedding(
-        self,
-        content: Union[str, List[str]]
+        self, content: Union[str, List[str]]
     ) -> Union[List[float], List[List[float]]]:
         """Generate embeddings for the given content."""
         raise NotImplementedError("Embedding generation not supported by this model")
 
-    async def process_image(
-        self,
-        image_data: bytes,
-        prompt: str
-    ) -> Message:
+    async def process_image(self, image_data: bytes, prompt: str) -> Message:
         """Process an image with the model."""
         raise NotImplementedError("Image processing not supported by this model")
 
-    async def transcribe_audio(
-        self,
-        audio_data: bytes
-    ) -> str:
+    async def transcribe_audio(self, audio_data: bytes) -> str:
         """Transcribe audio to text."""
         raise NotImplementedError("Audio transcription not supported by this model")
 
@@ -62,11 +55,7 @@ class BaseLLM(ABC):
         """Clear the conversation history."""
         self.history.clear()
 
-    async def execute_tool(
-        self,
-        tool_name: str,
-        **kwargs
-    ) -> Any:
+    async def execute_tool(self, tool_name: str, **kwargs) -> Any:
         """Execute a registered tool."""
         if tool_name not in self.tools:
             raise ValueError(f"Tool {tool_name} not found")
@@ -81,9 +70,7 @@ class BaseLLM(ABC):
         raise NotImplementedError("Rate limit handling not implemented for this model")
 
     def generate_sync(
-        self,
-        messages: List[Message],
-        stream: bool = False
+        self, messages: List[Message], stream: bool = False
     ) -> LLMResponse:
-        """Synchronous wrapper for generate method."""
+        """Synchronize wrapper for generate method."""
         return asyncio.run(self.generate(messages, stream=stream))
