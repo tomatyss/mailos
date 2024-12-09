@@ -46,4 +46,10 @@ email_config.json
 
 # OS specific
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Sphinx documentation
+docs/_build/
+docs/_autosummary/
+docs/_static/
+docs/_templates/

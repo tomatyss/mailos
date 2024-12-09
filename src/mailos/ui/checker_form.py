@@ -4,6 +4,7 @@ from pywebio.output import close_popup, popup, put_buttons, put_markdown, use_sc
 from pywebio.pin import pin_on_change, put_checkbox, put_input, put_select, put_textarea
 
 from mailos.utils.config_utils import load_config
+from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
 
 
@@ -25,9 +26,10 @@ def create_checker_form(index=None, on_save=None):
             on_save(index)
         close_popup()
 
-    with popup(f"{'Edit' if index is not None else 'New'} Email Checke", size="large"):
+    with popup(f"{'Edit' if index is not None else 'New'} Email Checker", size="large"):
         put_markdown(f"### {'Edit' if index is not None else 'New'} Email Checker")
 
+        # Email configuration fields
         put_input(
             "checker_name",
             type="text",
@@ -69,6 +71,7 @@ def create_checker_form(index=None, on_save=None):
             value=current_features,
         )
 
+        # LLM configuration
         put_select(
             "llm_provider",
             options=llm_providers,
@@ -76,43 +79,28 @@ def create_checker_form(index=None, on_save=None):
             value=checker.get("llm_provider", llm_providers[0]),
         )
 
-        put_input(
-            "model", type="text", label="Model Name", value=checker.get("model", "")
-        )
-
         def on_provider_change(provider):
+            vendor_config = VENDOR_CONFIGS.get(provider)
+            if not vendor_config:
+                return
+
             with use_scope("provider_credentials", clear=True):
-                if provider == "bedrock-anthropic":
+                # Add model selection with supported models
+                put_select(
+                    "model",
+                    options=vendor_config.supported_models,
+                    label="Model Name",
+                    value=checker.get("model", vendor_config.default_model),
+                )
+
+                # Add vendor-specific configuration fields
+                for field in vendor_config.fields:
                     put_input(
-                        "aws_access_key",
-                        type="password",
-                        label="AWS Access Key",
-                        value=checker.get("aws_access_key", ""),
-                    )
-                    put_input(
-                        "aws_secret_key",
-                        type="password",
-                        label="AWS Secret Key",
-                        value=checker.get("aws_secret_key", ""),
-                    )
-                    put_input(
-                        "aws_session_token",
-                        type="password",
-                        label="AWS Session Token (Optional)",
-                        value=checker.get("aws_session_token", ""),
-                    )
-                    put_input(
-                        "aws_region",
-                        type="text",
-                        label="AWS Region",
-                        value=checker.get("aws_region", "us-east-1"),
-                    )
-                else:
-                    put_input(
-                        "api_key",
-                        type="password",
-                        label="API Key",
-                        value=checker.get("api_key", ""),
+                        field.name,
+                        type=field.type,
+                        label=field.label,
+                        value=checker.get(field.name, field.default or ""),
+                        help_text=field.help_text,
                     )
 
         # Initial credentials fields

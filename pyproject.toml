@@ -38,6 +38,12 @@ dev = [
     "flake8-bugbear",
     "pre-commit"
 ]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-autobuild>=2024.2.4",
+    "sphinx-rtd-theme>=2.0.0",
+    "myst-parser>=2.0.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/tomatyss/mailos"
@@ -53,6 +59,29 @@ package-dir = {"" = "src"}
 line-length = 88
 target-version = ['py38']
 include = '\.pyi?$'
+extend-exclude = '''
+# A regex preceded with ^/ will apply only to files and directories
+# in the root of the project.
+^/docs/
+'''
 
 [tool.isort]
 profile = "black"
+skip_glob = ["docs/*"]
+
+[tool.mypy]
+exclude = [
+    "docs/",
+]
+
+[tool.flake8]
+exclude = [
+    "docs/*",
+    "build/*",
+    "dist/*",
+    ".git/*",
+    ".tox/*",
+    "*.egg-info",
+]
+max-line-length = 88
+extend-ignore = ["E203", "W503"]
