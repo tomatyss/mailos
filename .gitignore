@@ -50,6 +50,6 @@ Thumbs.db
 
 # Sphinx documentation
 docs/_build/
-docs/_autosummary/
+docs/api/_autosummary/
 docs/_static/
 docs/_templates/

@@ -65,41 +65,21 @@
 <section id="llm-configuration">
 <h3>LLM Configuration<a class="headerlink" href="#llm-configuration" title="Link to this heading">¶</a></h3>
 <dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">llm_provider</span></code></dt><dd><p>LLM provider name (“openai”, “anthropic”, or “bedrock-anthropic”)</p>
+<dt><code class="docutils literal notranslate"><span class="pre">llm_provider</span></code></dt><dd><p>LLM provider name (see supported providers below)</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">model</span></code></dt><dd><p>Model name to use</p>
+<dt><code class="docutils literal notranslate"><span class="pre">model</span></code></dt><dd><p>Model name to use (provider-specific)</p>
 </dd>
 </dl>
 </section>
 <section id="provider-specific-settings">
 <h3>Provider-Specific Settings<a class="headerlink" href="#provider-specific-settings" title="Link to this heading">¶</a></h3>
-<section id="openai">
-<h4>OpenAI<a class="headerlink" href="#openai" title="Link to this heading">¶</a></h4>
-<dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">api_key</span></code></dt><dd><p>OpenAI API key</p>
-</dd>
-</dl>
-</section>
-<section id="anthropic">
-<h4>Anthropic<a class="headerlink" href="#anthropic" title="Link to this heading">¶</a></h4>
-<dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">api_key</span></code></dt><dd><p>Anthropic API key</p>
-</dd>
-</dl>
-</section>
-<section id="aws-bedrock">
-<h4>AWS Bedrock<a class="headerlink" href="#aws-bedrock" title="Link to this heading">¶</a></h4>
-<dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">aws_access_key</span></code></dt><dd><p>AWS access key</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">aws_secret_key</span></code></dt><dd><p>AWS secret key</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">aws_region</span></code></dt><dd><p>AWS region (default: “us-east-1”)</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">aws_session_token</span></code></dt><dd><p>Optional AWS session token</p>
-</dd>
-</dl>
-</section>
+<p>Each provider has its own required and optional fields as defined in the vendor configuration. See the provider documentation for details:</p>
+<ul class="simple">
+<li><p>OpenAI: API key</p></li>
+<li><p>Anthropic: API key</p></li>
+<li><p>AWS Bedrock: AWS credentials (access key, secret key, optional session token)</p></li>
+</ul>
+<p>For the most up-to-date list of required fields and supported models, check the vendor configurations in <code class="docutils literal notranslate"><span class="pre">src/mailos/vendors/config.py</span></code>.</p>
 </section>
 <section id="system-prompt">
 <h3>System Prompt<a class="headerlink" href="#system-prompt" title="Link to this heading">¶</a></h3>

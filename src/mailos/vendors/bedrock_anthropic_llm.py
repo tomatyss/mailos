@@ -21,18 +21,18 @@ class BedrockAnthropicLLM(BaseLLM):
         aws_access_key: str,  # AWS access key
         aws_secret_key: str,  # AWS secret key
         aws_session_token: str = None,  # Optional session token
-        region: str = "us-east-1",
+        aws_region: str = "us-east-1",  # Changed from region to aws_region
         model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
         **kwargs,
     ):
         """Initialize BedrockAnthropicLLM instance."""
         # We'll pass None as api_key to parent since we're using AWS credentials
         super().__init__(None, model, **kwargs)
-        self.region = region
+        self.aws_region = aws_region  # Changed from self.region
         self.aws_credentials = {
             "aws_access_key_id": aws_access_key,
             "aws_secret_access_key": aws_secret_key,
-            "region_name": region,
+            "region_name": aws_region,  # Changed from region
         }
         if aws_session_token:
             self.aws_credentials["aws_session_token"] = aws_session_token
@@ -87,7 +87,8 @@ class BedrockAnthropicLLM(BaseLLM):
         try:
             # Create a regular client instead of using async context manager
             bedrock = self.session.client(
-                service_name="bedrock-runtime", region_name=self.region
+                service_name="bedrock-runtime",
+                region_name=self.aws_region,  # Changed from self.region
             )
 
             if stream:

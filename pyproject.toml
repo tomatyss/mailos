@@ -67,7 +67,8 @@ extend-exclude = '''
 
 [tool.isort]
 profile = "black"
-skip_glob = ["docs/*"]
+multi_line_output = 3
+skip = ["docs"]
 
 [tool.mypy]
 exclude = [

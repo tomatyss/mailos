@@ -5,6 +5,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from mailos.utils.logger_utils import setup_logger
+from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
 from mailos.vendors.models import Content, Message, RoleType
 
@@ -107,19 +108,28 @@ def handle_email_reply(checker_config, email_data):
             "model": checker_config["model"],
         }
 
-        # Add provider-specific credentials
-        if checker_config["llm_provider"] == "bedrock-anthropic":
-            llm_args.update(
-                {
-                    "aws_access_key": checker_config["aws_access_key"],
-                    "aws_secret_key": checker_config["aws_secret_key"],
-                    "region": checker_config.get("aws_region", "us-east-1"),
-                }
-            )
-            if "aws_session_token" in checker_config:
-                llm_args["aws_session_token"] = checker_config["aws_session_token"]
-        else:
-            llm_args["api_key"] = checker_config["api_key"]
+        # Get vendor configuration
+        vendor_config = VENDOR_CONFIGS.get(checker_config["llm_provider"])
+        if not vendor_config:
+            logger.error(f"Unknown LLM provider: {checker_config['llm_provider']}")
+            return False
+
+        # Add vendor-specific credentials based on configuration
+        for field in vendor_config.fields:
+            field_name = field.name
+            # Map 'region' to 'aws_region' for consistency
+            if field_name == "region":
+                field_name = "aws_region"
+
+            if field_name in checker_config:
+                llm_args[field_name] = checker_config[field_name]
+            elif field.required:
+                logger.error(
+                    f"Missing required field '{field_name}' for {vendor_config.name}"
+                )
+                return False
+            elif field.default is not None:
+                llm_args[field_name] = field.default
 
         # Initialize the LLM with the appropriate arguments
         llm = LLMFactory.create(**llm_args)

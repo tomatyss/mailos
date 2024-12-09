@@ -41,40 +41,21 @@ LLM Configuration
 ~~~~~~~~~~~~~~
 
 ``llm_provider``
-    LLM provider name ("openai", "anthropic", or "bedrock-anthropic")
+    LLM provider name (see supported providers below)
 
 ``model``
-    Model name to use
+    Model name to use (provider-specific)
 
 Provider-Specific Settings
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-OpenAI
-^^^^^^
+Each provider has its own required and optional fields as defined in the vendor configuration. See the provider documentation for details:
 
-``api_key``
-    OpenAI API key
+- OpenAI: API key
+- Anthropic: API key
+- AWS Bedrock: AWS credentials (access key, secret key, optional session token)
 
-Anthropic
-^^^^^^^^
-
-``api_key``
-    Anthropic API key
-
-AWS Bedrock
-^^^^^^^^^^
-
-``aws_access_key``
-    AWS access key
-
-``aws_secret_key``
-    AWS secret key
-
-``aws_region``
-    AWS region (default: "us-east-1")
-
-``aws_session_token``
-    Optional AWS session token
+For the most up-to-date list of required fields and supported models, check the vendor configurations in ``src/mailos/vendors/config.py``.
 
 System Prompt
 ~~~~~~~~~~~

@@ -3,8 +3,11 @@ repos:
     rev: v4.5.0
     hooks:
     -   id: trailing-whitespace
+        exclude: ^(docs/|\.flake8|\.ini|\.cfg)
     -   id: end-of-file-fixer
+        exclude: ^(docs/|\.flake8|\.ini|\.cfg)
     -   id: check-yaml
+        exclude: ^docs/_build/
     -   id: check-added-large-files
         exclude: ^docs/_build/
     -   id: check-toml
@@ -27,7 +30,7 @@ repos:
     rev: 7.0.0
     hooks:
     -   id: flake8
-        exclude: ^docs/
+        exclude: ^(docs/|\.flake8|\.ini|\.cfg)
         additional_dependencies: [
             'flake8-docstrings',
             'flake8-quotes',
