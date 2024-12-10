@@ -4,12 +4,13 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+from mailos.tools.weather import weather_tool
 from mailos.utils.logger_utils import setup_logger
 from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
 from mailos.vendors.models import Content, Message, RoleType
 
-logger = setup_logger("email_reply")
+logger = setup_logger("reply")
 
 
 def create_email_prompt(email_data):
@@ -20,6 +21,11 @@ Context: You are responding to an email. Here are the details:
 From: {email_data['from']}
 Subject: {email_data['subject']}
 Message: {email_data['body']}
+
+You have access to a weather tool that can provide current weather information for
+any city.If the email asks about weather or if weather information would be relevant
+to the response, you can use the get_weather function to include accurate weather
+data in your reply.
 
 Please compose a professional and helpful response. Keep your response concise and
 relevant. Your response will be followed by the original message, so you don't need
@@ -141,7 +147,7 @@ def handle_email_reply(checker_config, email_data):
             )
             return False
 
-        # Create the messages list
+        # Create the messages list with available tools
         messages = [
             Message(
                 role=RoleType.SYSTEM,
@@ -160,8 +166,14 @@ def handle_email_reply(checker_config, email_data):
             ),
         ]
 
-        # Get the response from LLM
-        response = llm.generate_sync(messages=messages, stream=False)
+        logger.debug(f"Messages: {messages}")
+
+        # Get the response from LLM with weather tool available
+        response = llm.generate_sync(
+            messages=messages,
+            stream=False,
+            tools=[weather_tool],  # Make weather tool available to the LLM
+        )
 
         if not response or not response.content:
             logger.error("Empty response from LLM")
