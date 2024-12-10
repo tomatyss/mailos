@@ -34,7 +34,6 @@ from mailos.utils.config_utils import load_config, save_config
 from mailos.utils.logger_utils import setup_logger
 
 scheduler = None
-logger = setup_logger("web_app")
 
 
 def save_checker(identifier: Optional[str] = None) -> None:
@@ -111,6 +110,7 @@ def check_email_app():
     """Run the main web application."""
     global scheduler
     if not scheduler:
+        logger = logging.getLogger("web_app")
         logger.info("Initializing scheduler...")
         scheduler = init_scheduler()
 
@@ -143,7 +143,13 @@ def cli():
     )
     def run(log_level):
         log_level = getattr(logging, log_level.upper())
-        setup_logger("mailos", log_level)
+        # Set up logging first thing
+        logger = setup_logger("web_app", log_level)
+
+        # Test debug logging
+        logger.debug("DEBUG TEST: Starting application with log level: %s", log_level)
+        logger.info("INFO TEST: Starting application with log level: %s", log_level)
+
         init_scheduler()
         start_server(check_email_app, port=8080, debug=True)
 
