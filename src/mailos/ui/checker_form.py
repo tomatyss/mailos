@@ -1,7 +1,5 @@
 """UI functions for creating and editing checker forms."""
 
-import logging
-
 from pywebio.output import close_popup, popup, put_buttons, put_markdown, use_scope
 from pywebio.pin import (
     pin,
@@ -14,10 +12,9 @@ from pywebio.pin import (
 
 from mailos.tools import AVAILABLE_TOOLS
 from mailos.utils.config_utils import load_config
+from mailos.utils.logger_utils import logger
 from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
-
-logger = logging.getLogger(__name__)
 
 
 def create_checker_form(checker_id=None, on_save=None):

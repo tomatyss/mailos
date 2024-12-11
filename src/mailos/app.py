@@ -17,10 +17,8 @@ from mailos.check_emails import init_scheduler
 from mailos.ui.checker_form import create_checker_form
 from mailos.ui.display import display_checkers, refresh_display
 from mailos.utils.config_utils import load_config, save_config
-from mailos.utils.logger_utils import setup_logger
+from mailos.utils.logger_utils import logger
 from mailos.vendors.config import VENDOR_CONFIGS
-
-logger = setup_logger(__name__)
 
 scheduler = None
 
@@ -125,7 +123,6 @@ def check_email_app():
     """Run the main web application."""
     global scheduler
     if not scheduler:
-        logger = logging.getLogger("web_app")
         logger.info("Initializing scheduler...")
         scheduler = init_scheduler()
 
@@ -166,8 +163,8 @@ def cli():
         help="Set the logging level",
     )
     def run(log_level):
-        log_level = getattr(logging, log_level.upper())
-        logger = setup_logger("web_app", log_level)
+        # Set log level on root logger
+        logging.getLogger().setLevel(getattr(logging, log_level.upper()))
         logger.debug("Starting application with log level: %s", log_level)
         init_scheduler()
         start_server(check_email_app, port=8080, debug=True)

@@ -4,6 +4,7 @@ from pywebio.output import put_buttons, put_grid, put_markdown, use_scope
 from pywebio.pin import pin_on_change, put_select
 
 from mailos.tools import AVAILABLE_TOOLS
+from mailos.utils.logger_utils import logger
 
 
 def display_checker_controls(on_control, on_filter=None):
@@ -70,9 +71,13 @@ def display_checker(checker, action_callback, status_filter=None):
         for tool_id in enabled_tools:
             if tool_id in tool_map:
                 tool_names.append(tool_map[tool_id])
+                logger.debug(f"Found tool {tool_id}: {tool_map[tool_id]}")
+            else:
+                logger.warning(f"Unknown tool ID in config: {tool_id}")
         tools_text = f"\n- Enabled Tools: {', '.join(tool_names)}"
     else:
         tools_text = "\n- No tools enabled"
+        logger.debug(f"No tools enabled for checker {checker_id}")
 
     put_markdown(
         f"""
