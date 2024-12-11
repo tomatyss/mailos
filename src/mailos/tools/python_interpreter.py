@@ -5,10 +5,8 @@ import traceback
 from io import StringIO
 from typing import Dict
 
-from mailos.utils.logger_utils import setup_logger
+from mailos.utils.logger_utils import logger
 from mailos.vendors.models import Tool
-
-logger = setup_logger("python_interpreter")
 
 
 def execute_python(code: str) -> Dict:

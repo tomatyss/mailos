@@ -4,10 +4,8 @@ import shlex
 import subprocess
 from typing import Dict, Optional
 
-from mailos.utils.logger_utils import setup_logger
+from mailos.utils.logger_utils import logger
 from mailos.vendors.models import Tool
-
-logger = setup_logger("bash_command")
 
 
 def execute_bash(

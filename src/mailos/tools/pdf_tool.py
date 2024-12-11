@@ -6,10 +6,8 @@ from typing import Dict, List, Optional, Union
 
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 
-from mailos.utils.logger_utils import setup_logger
+from mailos.utils.logger_utils import logger
 from mailos.vendors.models import Tool
-
-logger = setup_logger("pdf_tool")
 
 
 def create_pdf(content: str, output_path: str) -> Dict:
