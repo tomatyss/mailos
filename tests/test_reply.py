@@ -4,18 +4,26 @@ from unittest.mock import patch
 
 import pytest
 
-from mailos.reply import create_email_prompt, handle_email_reply
+from mailos.reply import EmailData, create_email_prompt, handle_email_reply
 from mailos.utils.reply_utils import should_reply
 from mailos.vendors.config import VENDOR_CONFIGS
 
 
 def test_create_email_prompt(valid_email_data, mock_tools):
     """Test email prompt creation."""
-    prompt = create_email_prompt(valid_email_data, mock_tools)
+    email = EmailData(
+        sender=valid_email_data["from"],
+        subject=valid_email_data["subject"],
+        body=valid_email_data["body"],
+        msg_date=valid_email_data["msg_date"],
+        message_id=valid_email_data["message_id"],
+        attachments=valid_email_data.get("attachments", []),
+    )
+    prompt = create_email_prompt(email, mock_tools)
 
-    assert valid_email_data["from"] in prompt
-    assert valid_email_data["subject"] in prompt
-    assert valid_email_data["body"] in prompt
+    assert email.sender in prompt
+    assert email.subject in prompt
+    assert email.body in prompt
     assert "Test tool" in prompt  # Tool description should be in prompt
 
 
