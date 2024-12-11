@@ -2,25 +2,11 @@
 MailOS Web Application Module.
 
 This module provides a web interface for managing email monitoring configurations
-using PyWebIO. It allows users to create, update, and manage email checkers that
-use various LLM providers (OpenAI, Anthropic, Bedrock) to process emails.
-
-The application supports:
-- Creating and editing email checker configurations
-- Managing monitoring settings for email accounts
-- Configuring LLM providers and their credentials
-- Real-time display of active checkers
-- Scheduling and managing email checking jobs
-
-Example:
-    To run the web application:
-    ```python
-    from mailos.app import start_app
-    start_app(port=8080)
-    ```
+using PyWebIO.
 """
 
 import logging
+import uuid
 from typing import Optional
 
 from pywebio import start_server
@@ -30,68 +16,86 @@ from pywebio.pin import pin
 from mailos.check_emails import init_scheduler
 from mailos.ui.checker_form import create_checker_form
 from mailos.ui.display import display_checkers, refresh_display
-from mailos.utils.config_utils import load_config, save_config
+from mailos.utils.config_utils import load_config, save_config, update_checker_field
 from mailos.utils.logger_utils import setup_logger
+
+logger = setup_logger(__name__)
 
 scheduler = None
 
 
 def save_checker(identifier: Optional[str] = None) -> None:
-    """Save or update an email checker configuration.
-
-    Args:
-        identifier (str, optional): Unique identifier (email or name) of existing
-            checker to update. If None, creates new checker.
-    """
+    """Save or update an email checker configuration."""
     try:
         config = load_config()
-
-        # Collect form data
-        checker_config = {
-            "name": pin.checker_name,
-            "monitor_email": pin.monitor_email,
-            "password": pin.password,
-            "imap_server": pin.imap_server,
-            "imap_port": pin.imap_port,
-            "llm_provider": pin.llm_provider,
-            "model": pin.model,
-            "system_prompt": pin.system_prompt,
-        }
-
-        # Add provider-specific credentials
-        if pin.llm_provider == "bedrock-anthropic":
-            checker_config.update(
-                {
-                    "aws_access_key": pin.aws_access_key,
-                    "aws_secret_key": pin.aws_secret_key,
-                    "aws_region": pin.aws_region,
-                }
-            )
-            if hasattr(pin, "aws_session_token") and pin.aws_session_token:
-                checker_config["aws_session_token"] = pin.aws_session_token
-        else:
-            checker_config["api_key"] = pin.api_key
-
-        # Transform configuration
-        checker_config["enabled"] = "Enable monitoring" in pin.features
-        checker_config["auto_reply"] = "Auto-reply to emails" in pin.features
+        logger.info(f"Updating checker with identifier: {identifier}")
 
         if identifier:
-            # Find and update existing checker
-            for checker in config["checkers"]:
-                if (
-                    checker.get("monitor_email") == identifier
-                    or checker.get("name") == identifier
-                ):
-                    checker_config["last_run"] = checker.get("last_run", "Never")
-                    config["checkers"].remove(checker)
-                    config["checkers"].append(checker_config)
-                    break
-        else:
-            checker_config["last_run"] = "Never"
-            config["checkers"].append(checker_config)
+            # Update existing checker fields individually
+            update_checker_field(identifier, "name", pin.checker_name)
+            update_checker_field(identifier, "monitor_email", pin.monitor_email)
+            update_checker_field(identifier, "password", pin.password)
+            update_checker_field(identifier, "imap_server", pin.imap_server)
+            update_checker_field(identifier, "imap_port", pin.imap_port)
+            update_checker_field(identifier, "llm_provider", pin.llm_provider)
+            update_checker_field(identifier, "model", pin.model)
+            update_checker_field(identifier, "system_prompt", pin.system_prompt)
 
-        save_config(config)
+            # Update provider-specific credentials
+            if pin.llm_provider == "bedrock-anthropic":
+                update_checker_field(identifier, "aws_access_key", pin.aws_access_key)
+                update_checker_field(identifier, "aws_secret_key", pin.aws_secret_key)
+                update_checker_field(identifier, "aws_region", pin.aws_region)
+                if hasattr(pin, "aws_session_token") and pin.aws_session_token:
+                    update_checker_field(
+                        identifier, "aws_session_token", pin.aws_session_token
+                    )
+            else:
+                update_checker_field(identifier, "api_key", pin.api_key)
+
+            # Update features
+            enabled = "Enable monitoring" in pin.features
+            auto_reply = "Auto-reply to emails" in pin.features
+
+            update_checker_field(identifier, "enabled", enabled)
+            update_checker_field(identifier, "auto_reply", auto_reply)
+
+            logger.info(f"Updated checker with ID: {identifier}")
+        else:
+            # Create new checker
+            new_checker = {
+                "id": str(uuid.uuid4()),
+                "name": pin.checker_name,
+                "monitor_email": pin.monitor_email,
+                "password": pin.password,
+                "imap_server": pin.imap_server,
+                "imap_port": pin.imap_port,
+                "llm_provider": pin.llm_provider,
+                "model": pin.model,
+                "system_prompt": pin.system_prompt,
+                "enabled": "Enable monitoring" in pin.features,
+                "auto_reply": "Auto-reply to emails" in pin.features,
+                "last_run": "Never",  # Initialize last_run for new checkers only
+            }
+
+            # Add provider-specific credentials
+            if pin.llm_provider == "bedrock-anthropic":
+                new_checker.update(
+                    {
+                        "aws_access_key": pin.aws_access_key,
+                        "aws_secret_key": pin.aws_secret_key,
+                        "aws_region": pin.aws_region,
+                    }
+                )
+                if hasattr(pin, "aws_session_token") and pin.aws_session_token:
+                    new_checker["aws_session_token"] = pin.aws_session_token
+            else:
+                new_checker["api_key"] = pin.api_key
+
+            config["checkers"].append(new_checker)
+            save_config(config)
+            logger.info(f"Added new checker with ID: {new_checker['id']}")
+
         clear("edit_checker_form" if identifier else "new_checker_form")
         refresh_display()
         toast(f"Checker {'updated' if identifier else 'added'} successfully")
@@ -103,6 +107,7 @@ def save_checker(identifier: Optional[str] = None) -> None:
             toast("Initial check completed")
 
     except Exception as e:
+        logger.error(f"Failed to save configuration: {str(e)}")
         toast(f"Failed to save configuration: {str(e)}", color="error")
 
 
@@ -119,6 +124,16 @@ def check_email_app():
 
     config = load_config()
 
+    # Ensure all existing checkers have IDs
+    modified = False
+    for checker in config.get("checkers", []):
+        if not checker.get("id"):
+            checker["id"] = str(uuid.uuid4())
+            modified = True
+    if modified:
+        save_config(config)
+        logger.info("Added IDs to existing checkers")
+
     with use_scope("checkers"):
         display_checkers(config, save_checker)
 
@@ -129,7 +144,6 @@ def check_email_app():
 
 def cli():
     """CLI entry point for the application."""
-    # Add click options for log level
     import click
 
     @click.command()
@@ -143,13 +157,8 @@ def cli():
     )
     def run(log_level):
         log_level = getattr(logging, log_level.upper())
-        # Set up logging first thing
         logger = setup_logger("web_app", log_level)
-
-        # Test debug logging
-        logger.debug("DEBUG TEST: Starting application with log level: %s", log_level)
-        logger.info("INFO TEST: Starting application with log level: %s", log_level)
-
+        logger.debug("Starting application with log level: %s", log_level)
         init_scheduler()
         start_server(check_email_app, port=8080, debug=True)
 

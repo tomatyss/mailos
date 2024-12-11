@@ -21,36 +21,58 @@ def handle_global_control(action, refresh_callback):
         refresh_callback()
 
 
-def handle_checker_action(index, action, edit_callback=None, refresh_callback=None):
-    """Handle individual checker actions (delete/edit/toggle/copy)."""
+def handle_checker_action(
+    checker_id, action, edit_callback=None, refresh_callback=None
+):
+    """Handle individual checker actions (delete/edit/toggle/copy).
+
+    Args:
+        checker_id: The ID of the checker to act on
+        action: The action to perform (delete/edit/toggle/copy)
+        edit_callback: Callback for edit action
+        refresh_callback: Callback to refresh display
+    """
     config = load_config()
 
     if action.startswith("delete_"):
-        config["checkers"].pop(index)
+        # Find and remove checker by ID
+        config["checkers"] = [
+            c for c in config["checkers"] if c.get("id") != checker_id
+        ]
         toast("Checker deleted")
         save_config(config)
         refresh_callback()
         return True
     elif action.startswith("toggle_"):
-        config["checkers"][index]["enabled"] = not config["checkers"][index]["enabled"]
-        status = "enabled" if config["checkers"][index]["enabled"] else "disabled"
-        toast(f"Checker {status}")
-        save_config(config)
-        refresh_callback()
+        # Find and toggle checker by ID
+        for checker in config["checkers"]:
+            if checker.get("id") == checker_id:
+                checker["enabled"] = not checker["enabled"]
+                status = "enabled" if checker["enabled"] else "disabled"
+                toast(f"Checker {status}")
+                save_config(config)
+                refresh_callback()
+                break
         return True
     elif action.startswith("edit_"):
         if edit_callback:
-            edit_callback(index)
+            edit_callback(checker_id)  # Pass ID instead of index
         return False
     elif action.startswith("copy_"):
-        # Create a copy of the checker
-        new_checker = config["checkers"][index].copy()
-        new_checker["name"] = f"{new_checker.get('name', '')} (Copy)"
-        new_checker["enabled"] = False  # Start disabled by default
-        new_checker["last_run"] = "Never"
-        config["checkers"].append(new_checker)
-        save_config(config)
-        toast("Checker copied")
-        refresh_callback()
+        # Find checker by ID and create a copy
+        for checker in config["checkers"]:
+            if checker.get("id") == checker_id:
+                import uuid
+
+                new_checker = checker.copy()
+                new_checker["id"] = str(uuid.uuid4())  # Generate new ID for copy
+                new_checker["name"] = f"{new_checker.get('name', '')} (Copy)"
+                new_checker["enabled"] = False  # Start disabled by default
+                new_checker["last_run"] = "Never"
+                config["checkers"].append(new_checker)
+                save_config(config)
+                toast("Checker copied")
+                refresh_callback()
+                break
         return True
     return True

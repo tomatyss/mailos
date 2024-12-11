@@ -9,29 +9,11 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from mailos.reply import handle_email_reply, should_reply
-from mailos.utils.config_utils import load_config, save_config
+from mailos.utils.config_utils import load_config, update_checker_field
+from mailos.utils.email_utils import get_email_body
 from mailos.utils.logger_utils import setup_logger
 
 logger = setup_logger("email_checker")
-
-
-def get_email_body(email_message):
-    """Extract the email body from a potentially multipart message."""
-    if email_message.is_multipart():
-        for part in email_message.walk():
-            if part.get_content_type() == "text/plain":
-                try:
-                    return part.get_payload(decode=True).decode()
-                except (UnicodeDecodeError, AttributeError) as e:
-                    logger.warning(f"Failed to decode email part: {e}")
-                    return part.get_payload()
-    else:
-        try:
-            return email_message.get_payload(decode=True).decode()
-        except (UnicodeDecodeError, AttributeError) as e:
-            logger.warning(f"Failed to decode email payload: {e}")
-            return email_message.get_payload()
-    return ""
 
 
 def check_emails(checker_config):
@@ -93,8 +75,18 @@ def check_emails(checker_config):
         else:
             logger.error(f"Search failed: {result}")
 
-        # Update last_run timestamp
-        checker_config["last_run"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Update last_run timestamp using the dedicated function
+        checker_id = checker_config.get("id")
+        if checker_id:
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if update_checker_field(checker_id, "last_run", current_time):
+                logger.info(f"Updated last_run for checker ID: {checker_id}")
+            else:
+                logger.warning(
+                    f"Failed to update last_run for checker ID: {checker_id}"
+                )
+        else:
+            logger.warning("Checker has no ID, cannot update last_run timestamp")
 
         mail.close()
         mail.logout()
@@ -114,18 +106,10 @@ def main():
         logger.info("No configuration found")
         return
 
-    modified = False
     for checker in config.get("checkers", []):
         if checker.get("enabled"):
             logger.info(f"Checking {checker['monitor_email']}...")
             check_emails(checker)
-            modified = True
-
-    if modified:
-        logger.info("Saving updated configuration...")
-        save_config(config)
-    else:
-        logger.info("No enabled email checkers found")
 
 
 def init_scheduler():

@@ -19,12 +19,11 @@ def display_checkers(config, save_checker=None):
     def on_filter_change(value):
         clear("checker_list")
         with use_scope("checker_list"):
-            for i, checker in enumerate(config["checkers"]):
+            for checker in config["checkers"]:
                 display_checker(
-                    i,
                     checker,
-                    lambda idx, action: handle_checker_action(
-                        idx,
+                    lambda checker_id, action: handle_checker_action(
+                        checker_id,
                         action,
                         edit_callback=lambda x: create_checker_form(x, save_checker),
                         refresh_callback=lambda: refresh_display(save_checker),
@@ -42,12 +41,11 @@ def display_checkers(config, save_checker=None):
 
     # Initial display
     with use_scope("checker_list"):
-        for i, checker in enumerate(config["checkers"]):
+        for checker in config["checkers"]:
             display_checker(
-                i,
                 checker,
-                lambda idx, action: handle_checker_action(
-                    idx,
+                lambda checker_id, action: handle_checker_action(
+                    checker_id,
                     action,
                     edit_callback=lambda x: create_checker_form(x, save_checker),
                     refresh_callback=lambda: refresh_display(save_checker),
