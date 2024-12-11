@@ -241,15 +241,18 @@ class BedrockAnthropicLLM(BaseLLM):
         # Add the assistant's response with tool uses
         messages.append({"role": "assistant", "content": raw_response["content"]})
 
-        # Add tool results as a user message
-        messages.append(
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": str(result)} for result in tool_results
-                ],
-            }
-        )
+        # Add tool results as a user message with proper tool_result blocks
+        tool_result_content = []
+        for result in tool_results:
+            tool_result_content.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": result["tool_use_id"],
+                    "content": result["content"],
+                }
+            )
+
+        messages.append({"role": "user", "content": tool_result_content})
 
         return {"messages": messages, "system": raw_response.get("system")}
 

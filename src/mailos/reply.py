@@ -3,6 +3,7 @@
 from typing import List
 
 from mailos.tools import TOOL_MAP
+from mailos.utils.config_utils import get_attachment_settings
 from mailos.utils.email_utils import send_email
 from mailos.utils.logger_utils import logger
 from mailos.vendors.config import VENDOR_CONFIGS
@@ -18,16 +19,42 @@ def create_email_prompt(email_data, available_tools, has_images: bool = False):
         for tool in available_tools:
             tools_description += f"- {tool.name}: {tool.description}\n"
 
-    image_context = ""
-    if has_images:
-        image_context = (
-            "\nThis email contains image attachments which I've included for your "
-            "analysis. Please examine them and incorporate relevant details in your "
-            "response."
-        )
+    # Process attachments information
+    attachment_context = ""
+    pdf_paths = []
+
+    if email_data.get("attachments"):
+        image_count = 0
+        for attachment in email_data["attachments"]:
+            if attachment["type"].startswith("image/"):
+                image_count += 1
+            elif attachment["type"] == "application/pdf":
+                pdf_paths.append(
+                    {"name": attachment["original_name"], "path": attachment["path"]}
+                )
+
+        # Add context about images if present
+        if image_count > 0:
+            attachment_context += (
+                f"\nThis email contains {image_count} image attachments which "
+                "I've included for your analysis. Please examine them and "
+                "incorporate relevant details in your response."
+            )
+
+        # Add context about PDFs if present
+        if pdf_paths:
+            # Get storage settings for context
+            settings = get_attachment_settings()
+            attachment_context += (
+                f"\nThis email contains {len(pdf_paths)} PDF attachments stored in "
+                f"the {settings['base_storage_path']} directory. You can use the "
+                "PDF tools to work with these files at the following paths:\n"
+            )
+            for pdf in pdf_paths:
+                attachment_context += f"- {pdf['name']}: {pdf['path']}\n"
 
     return f"""
-Context: You are responding to an email. Here are the details:{image_context}
+Context: You are responding to an email. Here are the details:{attachment_context}
 
 From: {email_data['from']}
 Subject: {email_data['subject']}
