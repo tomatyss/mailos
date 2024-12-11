@@ -53,3 +53,4 @@ docs/_build/
 docs/api/_autosummary/
 docs/_static/
 docs/_templates/
+.pypirc
