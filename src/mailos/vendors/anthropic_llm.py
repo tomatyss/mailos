@@ -25,7 +25,7 @@ class AnthropicLLM(BaseLLM):
     def __init__(self, api_key: str, model: str = "claude-3-sonnet-20240229", **kwargs):
         """Initialize AnthropicLLM instance."""
         super().__init__(api_key, model, **kwargs)
-        self.client = anthropic.AsyncAnthropic(api_key=api_key)
+        self.client = anthropic.Anthropic(api_key=api_key)
 
     def _format_tools(self, tools: Optional[List[Tool]] = None) -> List[dict]:
         """Format tools into Anthropic's format."""
@@ -36,7 +36,7 @@ class AnthropicLLM(BaseLLM):
             {
                 "name": tool.name,
                 "description": tool.description,
-                "parameters": {
+                "input_schema": {
                     "type": "object",
                     "properties": tool.parameters.get("properties", {}),
                     "required": tool.required_params or [],
@@ -99,10 +99,15 @@ class AnthropicLLM(BaseLLM):
         if tools:
             kwargs["tools"] = tools
 
-        if stream:
-            return await self.client.messages.create(**kwargs, stream=True)
-
-        return await self.client.messages.create(**kwargs)
+        try:
+            if stream:
+                return await asyncio.to_thread(
+                    self.client.messages.create, **kwargs, stream=True
+                )
+            return await asyncio.to_thread(self.client.messages.create, **kwargs)
+        except Exception as e:
+            logger.error(f"Anthropic API error: {str(e)}")
+            raise
 
     def _create_response(
         self, raw_response: Any, tool_calls: Optional[List[Dict]] = None
@@ -185,15 +190,20 @@ class AnthropicLLM(BaseLLM):
         return await self.generate(messages)
 
     def generate_sync(
-        self, messages: List[Message], stream: bool = False
+        self,
+        messages: List[Message],
+        stream: bool = False,
+        tools: Optional[List[Tool]] = None,
     ) -> LLMResponse:
-        """Generate response synchronously by wrapping async method."""
+        """Generate response synchronously."""
         if stream:
             raise ValueError("Streaming is not supported in synchronous mode")
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            return loop.run_until_complete(self.generate(messages, stream=False))
+            return loop.run_until_complete(
+                self.generate(messages, stream=False, tools=tools)
+            )
         finally:
             loop.close()
 
