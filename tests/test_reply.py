@@ -1,62 +1,22 @@
 """Tests for email reply functionality."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from mailos.reply import create_email_prompt, handle_email_reply, should_reply
+from mailos.reply import create_email_prompt, handle_email_reply
+from mailos.utils.reply_utils import should_reply
 from mailos.vendors.config import VENDOR_CONFIGS
-from mailos.vendors.models import Content, LLMResponse, RoleType
 
 
-@pytest.fixture
-def mock_llm():
-    """Create a mock LLM instance."""
-    llm = MagicMock()
-    llm.generate_sync.return_value = LLMResponse(
-        content=[Content(type="text", data="Test response")], role=RoleType.ASSISTANT
-    )
-    return llm
-
-
-@pytest.fixture
-def valid_email_data():
-    """Create valid email data for testing."""
-    return {
-        "from": "sender@example.com",
-        "subject": "Test Subject",
-        "body": "Test body content",
-        "msg_date": "2024-03-20",
-        "message_id": "<test123@example.com>",
-    }
-
-
-@pytest.fixture
-def valid_checker_config():
-    """Create valid checker configuration for testing."""
-    return {
-        "monitor_email": "support@example.com",
-        "password": "test_password",
-        "imap_server": "imap.example.com",
-        "auto_reply": True,
-        "llm_provider": "anthropic",
-        "model": "claude-3-sonnet",
-        "api_key": "test_api_key",
-    }
-
-
-def test_create_email_prompt():
+def test_create_email_prompt(valid_email_data, mock_tools):
     """Test email prompt creation."""
-    email_data = {
-        "from": "test@example.com",
-        "subject": "Test Subject",
-        "body": "Test Message",
-    }
-    prompt = create_email_prompt(email_data)
+    prompt = create_email_prompt(valid_email_data, mock_tools)
 
-    assert "test@example.com" in prompt
-    assert "Test Subject" in prompt
-    assert "Test Message" in prompt
+    assert valid_email_data["from"] in prompt
+    assert valid_email_data["subject"] in prompt
+    assert valid_email_data["body"] in prompt
+    assert "Test tool" in prompt  # Tool description should be in prompt
 
 
 def test_should_reply_valid_email():
@@ -109,26 +69,25 @@ def test_handle_email_reply_different_providers(
         mock_llm.generate_sync.assert_called_once()
 
 
-def test_handle_email_reply_missing_required_fields(valid_checker_config):
+def test_handle_email_reply_missing_required_fields(base_checker_config):
     """Test handle_email_reply with missing required fields."""
     email_data = {
         "subject": "Test Subject",  # missing 'from' field
         "body": "Test body",
     }
-    result = handle_email_reply(valid_checker_config, email_data)
+    result = handle_email_reply(base_checker_config, email_data)
     assert result is False
 
 
-def test_handle_email_reply_auto_reply_disabled(valid_checker_config, valid_email_data):
+def test_handle_email_reply_auto_reply_disabled(base_checker_config, valid_email_data):
     """Test handle_email_reply with auto-reply disabled."""
-    valid_checker_config["auto_reply"] = False
-    result = handle_email_reply(valid_checker_config, valid_email_data)
+    base_checker_config["auto_reply"] = False
+    result = handle_email_reply(base_checker_config, valid_email_data)
     assert result is False
 
 
-@patch("smtplib.SMTP_SSL")
 def test_handle_email_reply_smtp_error(
-    mock_smtp, valid_checker_config, valid_email_data, mock_llm
+    base_checker_config, valid_email_data, mock_llm, mock_smtp
 ):
     """Test handle_email_reply with SMTP error."""
     mock_smtp.return_value.__enter__.return_value.send_message.side_effect = Exception(
@@ -137,28 +96,28 @@ def test_handle_email_reply_smtp_error(
 
     with patch("mailos.reply.LLMFactory.create", return_value=mock_llm):
         # Update the SMTP server in config
-        valid_checker_config["imap_server"] = "smtp.example.com"
-        result = handle_email_reply(valid_checker_config, valid_email_data)
+        base_checker_config["imap_server"] = "smtp.example.com"
+        result = handle_email_reply(base_checker_config, valid_email_data)
         assert result is False
 
 
-def test_handle_email_reply_unknown_provider(valid_checker_config, valid_email_data):
+def test_handle_email_reply_unknown_provider(base_checker_config, valid_email_data):
     """Test handle_email_reply with unknown provider."""
-    valid_checker_config["llm_provider"] = "unknown_provider"
-    result = handle_email_reply(valid_checker_config, valid_email_data)
+    base_checker_config["llm_provider"] = "unknown_provider"
+    result = handle_email_reply(base_checker_config, valid_email_data)
     assert result is False
 
 
-def test_handle_email_reply_missing_credentials(valid_checker_config, valid_email_data):
+def test_handle_email_reply_missing_credentials(base_checker_config, valid_email_data):
     """Test handle_email_reply with missing credentials."""
-    del valid_checker_config["api_key"]
-    result = handle_email_reply(valid_checker_config, valid_email_data)
+    del base_checker_config["api_key"]
+    result = handle_email_reply(base_checker_config, valid_email_data)
     assert result is False
 
 
 @pytest.mark.parametrize("optional_field", ["body", "msg_date", "message_id"])
 def test_handle_email_reply_missing_optional_fields(
-    optional_field, valid_checker_config, valid_email_data, mock_llm, mock_smtp
+    optional_field, base_checker_config, valid_email_data, mock_llm, mock_smtp
 ):
     """Test handle_email_reply with missing optional fields."""
     # Configure mock SMTP to return success
@@ -169,6 +128,14 @@ def test_handle_email_reply_missing_optional_fields(
 
     with patch("mailos.reply.LLMFactory.create", return_value=mock_llm):
         # Update the SMTP server in config
-        valid_checker_config["imap_server"] = "smtp.example.com"
-        result = handle_email_reply(valid_checker_config, email_data)
+        base_checker_config["imap_server"] = "smtp.example.com"
+        # Add required LLM configuration
+        base_checker_config.update(
+            {
+                "llm_provider": "anthropic",
+                "model": "claude-3-sonnet",
+                "api_key": "test_api_key",
+            }
+        )
+        result = handle_email_reply(base_checker_config, email_data)
         assert result is True

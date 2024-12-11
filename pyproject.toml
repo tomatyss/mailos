@@ -22,6 +22,7 @@ dependencies = [
     "anthropic>=0.40.0",
     "aioboto3>=13.2.0",
     "click>=8.1.7",
+    "requests>=2.32.3",
 ]
 requires-python = ">=3.8"
 

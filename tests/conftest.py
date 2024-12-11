@@ -3,8 +3,9 @@
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 
-from mailos.vendors.models import Content, LLMResponse, RoleType
+from mailos.vendors.models import Content, LLMResponse, RoleType, Tool
 
 
 @pytest.fixture
@@ -38,6 +39,9 @@ def base_checker_config():
         "imap_server": "imap.example.com",
         "imap_port": 993,
         "auto_reply": True,
+        "llm_provider": "anthropic",  # Added default provider
+        "model": "claude-3-sonnet",  # Added default model
+        "api_key": "test_api_key",  # Added default API key
     }
 
 
@@ -85,3 +89,51 @@ def mock_imap(monkeypatch):
     imap_mock = MagicMock()
     monkeypatch.setattr("imaplib.IMAP4_SSL", imap_mock)
     return imap_mock
+
+
+@pytest.fixture
+def mock_tools():
+    """Create mock tools for testing."""
+    return [
+        Tool(
+            name="test_tool",
+            description="Test tool",
+            parameters={"type": "object", "properties": {}},
+            function=lambda: None,
+        )
+    ]
+
+
+@pytest.fixture
+def mock_weather_api(monkeypatch):
+    """Mock OpenWeatherMap API responses."""
+
+    def create_weather_response(city="London", country="GB"):
+        return {
+            "name": city,
+            "sys": {"country": country},
+            "weather": [{"description": "clear sky"}],
+            "main": {
+                "temp": 293.15,  # 20°C
+                "feels_like": 292.15,
+                "pressure": 1013,
+                "humidity": 65,
+            },
+            "wind": {"speed": 3.6},  # ~13 km/h
+            "clouds": {"all": 20},
+        }
+
+    mock_response = MagicMock(spec=requests.Response)
+    mock_response.ok = True
+    mock_response.json.return_value = create_weather_response()
+
+    def mock_get(*args, **kwargs):
+        if not kwargs.get("params", {}).get("appid"):
+            mock_response.ok = False
+            mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+                "API key required"
+            )
+        return mock_response
+
+    monkeypatch.setattr("requests.get", mock_get)
+    return mock_response
