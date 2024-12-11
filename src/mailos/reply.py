@@ -1,14 +1,16 @@
 """Email reply functions."""
 
+from typing import List
+
 from mailos.tools import TOOL_MAP
 from mailos.utils.email_utils import send_email
 from mailos.utils.logger_utils import logger
 from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
-from mailos.vendors.models import Content, Message, RoleType
+from mailos.vendors.models import Content, ContentType, Message, RoleType
 
 
-def create_email_prompt(email_data, available_tools):
+def create_email_prompt(email_data, available_tools, has_images: bool = False):
     """Create a prompt for the LLM based on the email data."""
     tools_description = ""
     if available_tools:
@@ -16,8 +18,16 @@ def create_email_prompt(email_data, available_tools):
         for tool in available_tools:
             tools_description += f"- {tool.name}: {tool.description}\n"
 
+    image_context = ""
+    if has_images:
+        image_context = (
+            "\nThis email contains image attachments which I've included for your "
+            "analysis. Please examine them and incorporate relevant details in your "
+            "response."
+        )
+
     return f"""
-Context: You are responding to an email. Here are the details:
+Context: You are responding to an email. Here are the details:{image_context}
 
 From: {email_data['from']}
 Subject: {email_data['subject']}
@@ -31,11 +41,47 @@ to quote it.
 """
 
 
+def process_attachments(attachments: List[dict]) -> List[Content]:
+    """Process email attachments and convert images to Content objects.
+
+    Args:
+        attachments: List of attachment dictionaries
+
+    Returns:
+        List of Content objects for valid images
+    """
+    image_contents = []
+    supported_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+    for attachment in attachments:
+        if attachment["type"] in supported_types:
+            try:
+                with open(attachment["path"], "rb") as f:
+                    image_data = f.read()
+
+                image_contents.append(
+                    Content(
+                        type=ContentType.IMAGE,
+                        data=image_data,
+                        mime_type=attachment["type"],
+                    )
+                )
+                logger.info(
+                    f"Successfully processed image: {attachment['original_name']}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to process image {attachment['original_name']}: {e}"
+                )
+
+    return image_contents
+
+
 def handle_email_reply(checker_config, email_data):
     """Handle the email reply process using the configured LLM."""
     # Only require the essential fields
     required_fields = ["from", "subject"]  # These are the minimum required fields
-    optional_fields = ["body", "msg_date", "message_id"]
+    optional_fields = ["body", "msg_date", "message_id", "attachments"]
 
     # Check required fields
     missing_fields = [
@@ -51,8 +97,8 @@ def handle_email_reply(checker_config, email_data):
     # Set defaults for optional fields
     for field in optional_fields:
         if field not in email_data or email_data[field] is None:
-            email_data[field] = ""
-            logger.warning(f"Missing optional field '{field}', using empty string")
+            email_data[field] = [] if field == "attachments" else ""
+            logger.warning(f"Missing optional field '{field}', using default value")
 
     if not checker_config.get("auto_reply", False):
         logger.debug("Auto-reply is disabled for this checker")
@@ -98,6 +144,18 @@ def handle_email_reply(checker_config, email_data):
             )
             return False
 
+        # Process image attachments if present and supported by the model
+        image_contents: List[Content] = []
+        model_supports_images = any(
+            model_prefix in checker_config["model"].lower()
+            for model_prefix in ["claude-3", "claude-3-5"]
+        )
+
+        if email_data["attachments"] and model_supports_images:
+            image_contents = process_attachments(email_data["attachments"])
+            if image_contents:
+                logger.info(f"Processing {len(image_contents)} images with Claude")
+
         # Get enabled tools for this checker
         enabled_tools = []
         if "enabled_tools" in checker_config:
@@ -108,7 +166,20 @@ def handle_email_reply(checker_config, email_data):
                 else:
                     logger.warning(f"Unknown tool: {tool_name}")
 
-        # Create the messages list with available tools
+        # Create message content list
+        message_content = [
+            Content(
+                type=ContentType.TEXT,
+                data=create_email_prompt(
+                    email_data, enabled_tools, has_images=bool(image_contents)
+                ),
+            )
+        ]
+
+        # Add image contents if present
+        message_content.extend(image_contents)
+
+        # Create the messages list
         messages = [
             Message(
                 role=RoleType.SYSTEM,
@@ -123,11 +194,7 @@ def handle_email_reply(checker_config, email_data):
             ),
             Message(
                 role=RoleType.USER,
-                content=[
-                    Content(
-                        type="text", data=create_email_prompt(email_data, enabled_tools)
-                    )
-                ],
+                content=message_content,
             ),
         ]
 

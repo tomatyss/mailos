@@ -1,9 +1,13 @@
 """AWS Bedrock implementation of the LLM interface."""
 
+import base64
 import json
+import mimetypes
+from io import BytesIO
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 import boto3
+from PIL import Image
 
 from mailos.utils.logger_utils import setup_logger
 from mailos.vendors.base import BaseLLM
@@ -17,6 +21,11 @@ from mailos.vendors.models import (
 )
 
 logger = setup_logger("bedrock_anthropic_llm")
+
+# Supported image formats and max size (10MB)
+SUPPORTED_IMAGE_FORMATS = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
+MAX_IMAGE_DIMENSION = 4096  # Maximum dimension allowed by Claude
 
 
 class BedrockAnthropicLLM(BaseLLM):
@@ -48,6 +57,69 @@ class BedrockAnthropicLLM(BaseLLM):
             region_name=self.aws_region,
         )
 
+    def _process_image(
+        self, image_data: bytes, mime_type: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Process and validate image data for Claude.
+
+        Args:
+            image_data: Raw image data
+            mime_type: MIME type of the image (optional)
+
+        Returns:
+            Dictionary containing processed image data and metadata
+
+        Raises:
+            ValueError: If image validation fails
+        """
+        try:
+            # Validate MIME type
+            if mime_type is None:
+                mime_type = mimetypes.guess_type(
+                    "dummy" + Image.open(BytesIO(image_data)).format.lower()
+                )[0]
+
+            if mime_type not in SUPPORTED_IMAGE_FORMATS:
+                raise ValueError(f"Unsupported image format: {mime_type}")
+
+            # Check file size
+            if len(image_data) > MAX_IMAGE_SIZE:
+                raise ValueError(
+                    f"Image size exceeds maximum allowed size of "
+                    f"{MAX_IMAGE_SIZE / 1024 / 1024}MB"
+                )
+
+            # Open and validate image
+            img = Image.open(BytesIO(image_data))
+
+            # Check dimensions
+            if max(img.size) > MAX_IMAGE_DIMENSION:
+                # Resize image while maintaining aspect ratio
+                ratio = MAX_IMAGE_DIMENSION / max(img.size)
+                new_size = tuple(int(dim * ratio) for dim in img.size)
+                img = img.resize(new_size, Image.Resampling.LANCZOS)
+
+                # Convert back to bytes
+                buffer = BytesIO()
+                img.save(buffer, format=img.format)
+                image_data = buffer.getvalue()
+
+            # Convert to base64
+            base64_image = base64.b64encode(image_data).decode("utf-8")
+
+            return {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": mime_type,
+                    "data": base64_image,
+                },
+            }
+
+        except Exception as e:
+            logger.error(f"Error processing image: {str(e)}")
+            raise ValueError(f"Failed to process image: {str(e)}")
+
     def _format_tools(self, tools: Optional[List[Tool]] = None) -> List[dict]:
         """Format tools into Anthropic's format."""
         if not tools:
@@ -75,7 +147,6 @@ class BedrockAnthropicLLM(BaseLLM):
 
         for msg in messages:
             if msg.role == RoleType.SYSTEM:
-                # Extract system prompt from the first text content
                 system = next(
                     (c.data for c in msg.content if c.type == ContentType.TEXT), None
                 )
@@ -86,18 +157,13 @@ class BedrockAnthropicLLM(BaseLLM):
                 if c.type == ContentType.TEXT:
                     content.append({"type": "text", "text": c.data})
                 elif c.type == ContentType.IMAGE:
-                    content.append(
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": c.mime_type or "image/jpeg",
-                                "data": c.data,
-                            },
-                        }
-                    )
+                    try:
+                        content.append(self._process_image(c.data, c.mime_type))
+                    except ValueError as e:
+                        logger.warning(f"Skipping invalid image: {str(e)}")
+                        continue
 
-            if content:  # Only add message if it has content
+            if content:  # Only add message if it has valid content
                 formatted_messages.append({"role": msg.role.value, "content": content})
 
         return {"messages": formatted_messages, "system": system}
@@ -114,7 +180,6 @@ class BedrockAnthropicLLM(BaseLLM):
             "messages": messages["messages"],
         }
 
-        # Only add system if it's present
         if messages["system"]:
             request_body["system"] = messages["system"]
 
@@ -177,7 +242,14 @@ class BedrockAnthropicLLM(BaseLLM):
         messages.append({"role": "assistant", "content": raw_response["content"]})
 
         # Add tool results as a user message
-        messages.append({"role": "user", "content": tool_results})
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": str(result)} for result in tool_results
+                ],
+            }
+        )
 
         return {"messages": messages, "system": raw_response.get("system")}
 
@@ -196,7 +268,15 @@ class BedrockAnthropicLLM(BaseLLM):
         await super().handle_rate_limit()
 
     async def process_image(self, image_data: bytes, prompt: str) -> LLMResponse:
-        """Process an image (if supported by the model version)."""
+        """Process an image with Claude.
+
+        Args:
+            image_data: Raw image data
+            prompt: Text prompt to accompany the image
+
+        Returns:
+            LLMResponse containing Claude's analysis
+        """
         if "claude-3" not in self.model.lower():
             raise NotImplementedError(
                 "Image processing is only supported in Claude 3 models"
