@@ -7,18 +7,22 @@ Functions:
 
 Dependencies:
     mailos.utils.logger_utils: Provides the setup_logger function for logging.
+    mailos.utils.attachment_utils: Provides attachment handling functionality.
 
 Usage example:
     body = get_email_body(email_message)
+    attachments = process_attachments(email_message, sender_email)
 """
 
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Dict, List
 
-from mailos.utils.logger_utils import setup_logger
+from mailos.utils.attachment_utils import AttachmentManager
+from mailos.utils.logger_utils import logger
 
-logger = setup_logger("email_utils")
+attachment_manager = AttachmentManager()
 
 
 def get_email_body(email_message):
@@ -38,6 +42,23 @@ def get_email_body(email_message):
             logger.warning(f"Failed to decode email payload: {e}")
             return email_message.get_payload()
     return ""
+
+
+def process_attachments(email_message, sender_email: str) -> List[Dict]:
+    """Process and save attachments from an email message.
+
+    Args:
+        email_message: The email message containing attachments
+        sender_email: Email address of the sender
+
+    Returns:
+        List of dictionaries containing attachment metadata
+    """
+    try:
+        return attachment_manager.extract_attachments(email_message, sender_email)
+    except Exception as e:
+        logger.error(f"Failed to process attachments: {e}")
+        return []
 
 
 def send_email(

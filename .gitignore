@@ -54,3 +54,5 @@ docs/api/_autosummary/
 docs/_static/
 docs/_templates/
 .pypirc
+
+attachments/
