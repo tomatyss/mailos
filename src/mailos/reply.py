@@ -2,12 +2,10 @@
 
 from mailos.tools import TOOL_MAP
 from mailos.utils.email_utils import send_email
-from mailos.utils.logger_utils import setup_logger
+from mailos.utils.logger_utils import logger
 from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
 from mailos.vendors.models import Content, Message, RoleType
-
-logger = setup_logger("reply")
 
 
 def create_email_prompt(email_data, available_tools):
