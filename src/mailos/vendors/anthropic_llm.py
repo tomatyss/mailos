@@ -1,13 +1,20 @@
 """Anthropic implementation of the LLM interface."""
 
 import asyncio
-from typing import AsyncIterator, List, Union
+from typing import Any, AsyncIterator, Dict, List, Optional
 
 import anthropic
 
 from mailos.utils.logger_utils import setup_logger
 from mailos.vendors.base import BaseLLM
-from mailos.vendors.models import Content, ContentType, LLMResponse, Message, RoleType
+from mailos.vendors.models import (
+    Content,
+    ContentType,
+    LLMResponse,
+    Message,
+    RoleType,
+    Tool,
+)
 
 logger = setup_logger("anthropic_llm")
 
@@ -20,55 +27,149 @@ class AnthropicLLM(BaseLLM):
         super().__init__(api_key, model, **kwargs)
         self.client = anthropic.AsyncAnthropic(api_key=api_key)
 
-    async def generate(
-        self, messages: List[Message], stream: bool = False
-    ) -> Union[LLMResponse, AsyncIterator[LLMResponse]]:
-        """Generate a response using Anthropic's API."""
-        system_prompt, formatted_messages = self._format_messages(messages)
+    def _format_tools(self, tools: Optional[List[Tool]] = None) -> List[dict]:
+        """Format tools into Anthropic's format."""
+        if not tools:
+            return []
 
-        try:
-            kwargs = {
-                "model": self.model,
-                "messages": formatted_messages,
-                "max_tokens": self.config.max_tokens or 4096,
-                "temperature": self.config.temperature,
+        return [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": tool.parameters.get("properties", {}),
+                    "required": tool.required_params or [],
+                },
             }
+            for tool in tools
+        ]
 
-            if system_prompt:
-                kwargs["system"] = system_prompt
+    def _format_messages(
+        self, messages: List[Message], tools: Optional[List[Tool]] = None
+    ) -> Dict[str, Any]:
+        """Format messages into Anthropic format."""
+        formatted_messages = []
+        system = None
 
-            if stream:
-                stream_response = await self.client.messages.create(
-                    **kwargs, stream=True
+        for msg in messages:
+            if msg.role == RoleType.SYSTEM:
+                system = next(
+                    (c.data for c in msg.content if c.type == ContentType.TEXT), None
                 )
+                continue
 
-                async def response_generator():
-                    async for chunk in stream_response:
-                        if chunk.delta.text:
-                            yield LLMResponse(
-                                content=[
-                                    Content(
-                                        type=ContentType.TEXT, data=chunk.delta.text
-                                    )
-                                ],
-                                model=self.model,
-                            )
+            if msg.role not in [RoleType.USER, RoleType.ASSISTANT]:
+                continue
 
-                return response_generator()
+            content = []
+            for c in msg.content:
+                if c.type == ContentType.TEXT:
+                    content.append({"type": "text", "text": c.data})
+                elif c.type == ContentType.IMAGE:
+                    content.append(
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": c.mime_type or "image/jpeg",
+                                "data": c.data,
+                            },
+                        }
+                    )
 
-            response = await self.client.messages.create(**kwargs)
+            formatted_messages.append({"role": msg.role.value, "content": content})
 
-            return LLMResponse(
-                content=[Content(type=ContentType.TEXT, data=response.content[0].text)],
-                model=self.model,
-                finish_reason=response.stop_reason,
-                usage=response.usage,
-                system_fingerprint=response.id,
-            )
+        return {"messages": formatted_messages, "system": system}
 
-        except anthropic.RateLimitError:
-            await self.handle_rate_limit()
-            return await self.generate(messages, stream)
+    async def _make_request(
+        self, messages: Dict[str, Any], tools: List[dict] = None, stream: bool = False
+    ) -> Any:
+        """Make request to Anthropic's API."""
+        kwargs = {
+            "model": self.model,
+            "messages": messages["messages"],
+            "max_tokens": self.config.max_tokens or 4096,
+            "temperature": self.config.temperature,
+        }
+
+        if messages["system"]:
+            kwargs["system"] = messages["system"]
+
+        if tools:
+            kwargs["tools"] = tools
+
+        if stream:
+            return await self.client.messages.create(**kwargs, stream=True)
+
+        return await self.client.messages.create(**kwargs)
+
+    def _create_response(
+        self, raw_response: Any, tool_calls: Optional[List[Dict]] = None
+    ) -> LLMResponse:
+        """Create LLMResponse from Anthropic response."""
+        return LLMResponse(
+            content=[Content(type=ContentType.TEXT, data=raw_response.content[0].text)],
+            model=self.model,
+            finish_reason=raw_response.stop_reason,
+            usage=raw_response.usage,
+            tool_calls=tool_calls,
+            system_fingerprint=raw_response.id,
+        )
+
+    def _extract_tool_calls(self, raw_response: Any) -> List[Dict]:
+        """Extract tool calls from Anthropic response."""
+        tool_calls = []
+        for message in raw_response.content:
+            if message.type == "tool_calls":
+                for tool_call in message.tool_calls:
+                    tool_calls.append(
+                        {
+                            "id": tool_call.id,
+                            "name": tool_call.name,
+                            "input": tool_call.parameters,
+                        }
+                    )
+        return tool_calls
+
+    def _has_tool_calls(self, raw_response: Any) -> bool:
+        """Check if response contains tool calls."""
+        return any(message.type == "tool_calls" for message in raw_response.content)
+
+    def _format_tool_results(
+        self, raw_response: Any, tool_results: List[Dict]
+    ) -> Dict[str, Any]:
+        """Format tool results for next request."""
+        messages = raw_response.messages
+
+        # Add the assistant's response with tool calls
+        messages.append(
+            {
+                "role": "assistant",
+                "content": raw_response.content,
+            }
+        )
+
+        # Add tool results as a user message
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": str(result)} for result in tool_results
+                ],
+            }
+        )
+
+        return {"messages": messages, "system": raw_response.system}
+
+    async def _stream_response(self, raw_response: Any) -> AsyncIterator[LLMResponse]:
+        """Stream response from Anthropic API."""
+        async for chunk in raw_response:
+            if chunk.delta.text:
+                yield LLMResponse(
+                    content=[Content(type=ContentType.TEXT, data=chunk.delta.text)],
+                    model=self.model,
+                )
 
     async def process_image(self, image_data: bytes, prompt: str) -> LLMResponse:
         """Process an image with Claude."""
@@ -96,37 +197,6 @@ class AnthropicLLM(BaseLLM):
         finally:
             loop.close()
 
-    def _format_messages(self, messages: List[Message]) -> tuple[str, List[dict]]:
-        """Convert our Message objects to Anthropic format and extract system prompt."""
-        formatted = []
-        system_prompt = None
-
-        for msg in messages:
-            # Extract system message
-            if msg.role == RoleType.SYSTEM:
-                system_prompt = msg.content[0].data
-                continue
-
-            # Only include user and assistant messages
-            if msg.role not in [RoleType.USER, RoleType.ASSISTANT]:
-                continue
-
-            content = []
-            for c in msg.content:
-                if c.type == ContentType.TEXT:
-                    content.append({"type": "text", "text": c.data})
-                elif c.type == ContentType.IMAGE:
-                    content.append(
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": c.mime_type or "image/jpeg",
-                                "data": c.data,
-                            },
-                        }
-                    )
-
-            formatted.append({"role": msg.role.value, "content": content})
-
-        return system_prompt, formatted
+    async def handle_rate_limit(self) -> None:
+        """Handle rate limiting by waiting."""
+        await asyncio.sleep(60)  # Wait for 60 seconds before retrying

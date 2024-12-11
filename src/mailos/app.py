@@ -18,6 +18,7 @@ from mailos.ui.checker_form import create_checker_form
 from mailos.ui.display import display_checkers, refresh_display
 from mailos.utils.config_utils import load_config, save_config, update_checker_field
 from mailos.utils.logger_utils import setup_logger
+from mailos.vendors.config import VENDOR_CONFIGS
 
 logger = setup_logger(__name__)
 
@@ -41,17 +42,14 @@ def save_checker(identifier: Optional[str] = None) -> None:
             update_checker_field(identifier, "model", pin.model)
             update_checker_field(identifier, "system_prompt", pin.system_prompt)
 
-            # Update provider-specific credentials
-            if pin.llm_provider == "bedrock-anthropic":
-                update_checker_field(identifier, "aws_access_key", pin.aws_access_key)
-                update_checker_field(identifier, "aws_secret_key", pin.aws_secret_key)
-                update_checker_field(identifier, "aws_region", pin.aws_region)
-                if hasattr(pin, "aws_session_token") and pin.aws_session_token:
-                    update_checker_field(
-                        identifier, "aws_session_token", pin.aws_session_token
-                    )
-            else:
-                update_checker_field(identifier, "api_key", pin.api_key)
+            # Update provider-specific credentials using VENDOR_CONFIGS
+            vendor_config = VENDOR_CONFIGS.get(pin.llm_provider)
+            if vendor_config:
+                for field in vendor_config.fields:
+                    if hasattr(pin, field.name):
+                        field_value = getattr(pin, field.name)
+                        if field_value or field.required:
+                            update_checker_field(identifier, field.name, field_value)
 
             # Update features
             enabled = "Enable monitoring" in pin.features
@@ -61,6 +59,7 @@ def save_checker(identifier: Optional[str] = None) -> None:
             update_checker_field(identifier, "auto_reply", auto_reply)
 
             logger.info(f"Updated checker with ID: {identifier}")
+            # TODO: debug issue with not updating config
         else:
             # Create new checker
             new_checker = {
@@ -78,19 +77,14 @@ def save_checker(identifier: Optional[str] = None) -> None:
                 "last_run": "Never",  # Initialize last_run for new checkers only
             }
 
-            # Add provider-specific credentials
-            if pin.llm_provider == "bedrock-anthropic":
-                new_checker.update(
-                    {
-                        "aws_access_key": pin.aws_access_key,
-                        "aws_secret_key": pin.aws_secret_key,
-                        "aws_region": pin.aws_region,
-                    }
-                )
-                if hasattr(pin, "aws_session_token") and pin.aws_session_token:
-                    new_checker["aws_session_token"] = pin.aws_session_token
-            else:
-                new_checker["api_key"] = pin.api_key
+            # Add provider-specific credentials using VENDOR_CONFIGS
+            vendor_config = VENDOR_CONFIGS.get(pin.llm_provider)
+            if vendor_config:
+                for field in vendor_config.fields:
+                    if hasattr(pin, field.name):
+                        field_value = getattr(pin, field.name)
+                        if field_value or field.required:
+                            new_checker[field.name] = field_value
 
             config["checkers"].append(new_checker)
             save_config(config)
