@@ -8,10 +8,11 @@ from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from mailos.reply import handle_email_reply, should_reply
+from mailos.reply import handle_email_reply
 from mailos.utils.config_utils import load_config, update_checker_field
 from mailos.utils.email_utils import get_email_body
 from mailos.utils.logger_utils import setup_logger
+from mailos.utils.reply_utils import should_reply
 
 logger = setup_logger("email_checker")
 
@@ -109,6 +110,8 @@ def main():
     for checker in config.get("checkers", []):
         if checker.get("enabled"):
             logger.info(f"Checking {checker['monitor_email']}...")
+            # TODO: Add asyncio support for parallel email checking
+            # TODO: add validation for chekers for the same email
             check_emails(checker)
 
 

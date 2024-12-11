@@ -1,10 +1,7 @@
 """Email reply functions."""
 
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-
-from mailos.tools.weather import weather_tool
+from mailos.tools import TOOL_MAP
+from mailos.utils.email_utils import send_email
 from mailos.utils.logger_utils import setup_logger
 from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
@@ -13,8 +10,14 @@ from mailos.vendors.models import Content, Message, RoleType
 logger = setup_logger("reply")
 
 
-def create_email_prompt(email_data):
+def create_email_prompt(email_data, available_tools):
     """Create a prompt for the LLM based on the email data."""
+    tools_description = ""
+    if available_tools:
+        tools_description = "You have access to the following tools:\n"
+        for tool in available_tools:
+            tools_description += f"- {tool.name}: {tool.description}\n"
+
     return f"""
 Context: You are responding to an email. Here are the details:
 
@@ -22,62 +25,12 @@ From: {email_data['from']}
 Subject: {email_data['subject']}
 Message: {email_data['body']}
 
-You have access to a weather tool that can provide current weather information for
-any city.If the email asks about weather or if weather information would be relevant
-to the response, you can use the get_weather function to include accurate weather
-data in your reply.
+{tools_description}
 
 Please compose a professional and helpful response. Keep your response concise and
 relevant. Your response will be followed by the original message, so you don't need
 to quote it.
 """
-
-
-def send_email(
-    smtp_server, smtp_port, sender_email, password, recipient, subject, body, email_data
-):
-    """Send an email using SMTP."""
-    try:
-        # Add logging to debug email_data contents
-        logger.debug(f"Email data received: {email_data}")
-
-        msg = MIMEMultipart()
-        msg["From"] = sender_email
-        msg["To"] = recipient
-        msg["Subject"] = f"Re: {subject}"
-
-        # Handle potentially None values with defaults
-        original_body = email_data.get("body", "")
-        if original_body is None:
-            original_body = ""
-            logger.warning("Email body was None, using empty string instead")
-
-        # Combine AI response with quoted original message
-        full_message = (
-            f"{body}\n\n"
-            f"> -------- Original Message --------\n"
-            f"> Subject: {email_data.get('subject', '(No subject)')}\n"
-            f"> Date: {email_data.get('msg_date', '(No date)')}\n"
-            f"> From: {email_data.get('from', '(No sender)')}\n"
-            f"> Message-ID: {email_data.get('message_id', '(No ID)')}\n"
-            f">\n"
-            f"> {original_body.replace('\n', '\n> ')}"
-        )
-
-        msg.attach(MIMEText(full_message, "plain"))
-
-        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
-            server.login(sender_email, password)
-            server.send_message(msg)
-
-        logger.info(f"Reply sent successfully to {recipient}")
-        return True
-
-    except Exception as e:
-        logger.error(
-            f"Failed to send reply: {str(e)}", exc_info=True
-        )  # Added exc_info for better error tracking
-        return False
 
 
 def handle_email_reply(checker_config, email_data):
@@ -147,6 +100,16 @@ def handle_email_reply(checker_config, email_data):
             )
             return False
 
+        # Get enabled tools for this checker
+        enabled_tools = []
+        if "enabled_tools" in checker_config:
+            for tool_name in checker_config["enabled_tools"]:
+                if tool_name in TOOL_MAP:
+                    enabled_tools.append(TOOL_MAP[tool_name])
+                    logger.debug(f"Added tool: {tool_name}")
+                else:
+                    logger.warning(f"Unknown tool: {tool_name}")
+
         # Create the messages list with available tools
         messages = [
             Message(
@@ -162,17 +125,22 @@ def handle_email_reply(checker_config, email_data):
             ),
             Message(
                 role=RoleType.USER,
-                content=[Content(type="text", data=create_email_prompt(email_data))],
+                content=[
+                    Content(
+                        type="text", data=create_email_prompt(email_data, enabled_tools)
+                    )
+                ],
             ),
         ]
 
         logger.debug(f"Messages: {messages}")
+        logger.debug(f"Enabled tools: {[tool.name for tool in enabled_tools]}")
 
-        # Get the response from LLM with weather tool available
+        # Get the response from LLM with enabled tools
         response = llm.generate_sync(
             messages=messages,
             stream=False,
-            tools=[weather_tool],  # Make weather tool available to the LLM
+            tools=enabled_tools,
         )
 
         if not response or not response.content:
@@ -207,29 +175,3 @@ def handle_email_reply(checker_config, email_data):
     except Exception as e:
         logger.error(f"Error in handle_email_reply: {str(e)}")
         return False
-
-
-def should_reply(email_data):
-    """Determine if an email should receive an auto-reply."""
-    no_reply_indicators = [
-        "no-reply",
-        "noreply",
-        "do-not-reply",
-        "automated",
-        "notification",
-        "mailer-daemon",
-        "postmaster",
-    ]
-
-    sender = email_data["from"].lower()
-    subject = email_data["subject"].lower()
-
-    # Don't reply to no-reply addresses
-    if any(indicator in sender for indicator in no_reply_indicators):
-        return False
-
-    # Don't reply to automated notifications
-    if any(indicator in subject for indicator in no_reply_indicators):
-        return False
-
-    return True
