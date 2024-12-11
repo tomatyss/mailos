@@ -16,7 +16,7 @@ from pywebio.pin import pin
 from mailos.check_emails import init_scheduler
 from mailos.ui.checker_form import create_checker_form
 from mailos.ui.display import display_checkers, refresh_display
-from mailos.utils.config_utils import load_config, save_config, update_checker_field
+from mailos.utils.config_utils import load_config, save_config
 from mailos.utils.logger_utils import setup_logger
 from mailos.vendors.config import VENDOR_CONFIGS
 
@@ -31,38 +31,49 @@ def save_checker(identifier: Optional[str] = None) -> None:
         config = load_config()
         logger.info(f"Updating checker with identifier: {identifier}")
 
+        # Get enabled tools (will be empty list if none checked)
+        enabled_tools = getattr(pin, "enabled_tools", []) or []
+        logger.debug(f"Enabled tools from form: {enabled_tools}")
+
         if identifier:
-            # Update existing checker fields individually
-            update_checker_field(identifier, "name", pin.checker_name)
-            update_checker_field(identifier, "monitor_email", pin.monitor_email)
-            update_checker_field(identifier, "password", pin.password)
-            update_checker_field(identifier, "imap_server", pin.imap_server)
-            update_checker_field(identifier, "imap_port", pin.imap_port)
-            update_checker_field(identifier, "llm_provider", pin.llm_provider)
-            update_checker_field(identifier, "model", pin.model)
-            update_checker_field(identifier, "system_prompt", pin.system_prompt)
+            # Find and update existing checker
+            for checker in config["checkers"]:
+                if checker.get("id") == identifier:
+                    # Update basic fields
+                    checker.update(
+                        {
+                            "name": pin.checker_name,
+                            "monitor_email": pin.monitor_email,
+                            "password": pin.password,
+                            "imap_server": pin.imap_server,
+                            "imap_port": pin.imap_port,
+                            "llm_provider": pin.llm_provider,
+                            "model": pin.model,
+                            "system_prompt": pin.system_prompt,
+                            "enabled_tools": enabled_tools,
+                            "enabled": "Enable monitoring" in pin.features,
+                            "auto_reply": "Auto-reply to emails" in pin.features,
+                        }
+                    )
 
-            # Update enabled tools
-            update_checker_field(identifier, "enabled_tools", pin.enabled_tools)
+                    # Update provider-specific credentials
+                    vendor_config = VENDOR_CONFIGS.get(pin.llm_provider)
+                    if vendor_config:
+                        for field in vendor_config.fields:
+                            if hasattr(pin, field.name):
+                                field_value = getattr(pin, field.name)
+                                if field_value or field.required:
+                                    checker[field.name] = field_value
 
-            # Update provider-specific credentials using VENDOR_CONFIGS
-            vendor_config = VENDOR_CONFIGS.get(pin.llm_provider)
-            if vendor_config:
-                for field in vendor_config.fields:
-                    if hasattr(pin, field.name):
-                        field_value = getattr(pin, field.name)
-                        if field_value or field.required:
-                            update_checker_field(identifier, field.name, field_value)
+                    logger.info(f"Updated checker with ID: {identifier}")
+                    logger.debug(f"Updated tools: {enabled_tools}")
+                    break
+            else:
+                logger.warning(f"No checker found with ID: {identifier}")
+                return
 
-            # Update features
-            enabled = "Enable monitoring" in pin.features
-            auto_reply = "Auto-reply to emails" in pin.features
-
-            update_checker_field(identifier, "enabled", enabled)
-            update_checker_field(identifier, "auto_reply", auto_reply)
-
-            logger.info(f"Updated checker with ID: {identifier}")
-            # TODO: debug issue with not updating config
+            # Save all changes at once
+            save_config(config)
         else:
             # Create new checker
             new_checker = {
@@ -77,11 +88,11 @@ def save_checker(identifier: Optional[str] = None) -> None:
                 "system_prompt": pin.system_prompt,
                 "enabled": "Enable monitoring" in pin.features,
                 "auto_reply": "Auto-reply to emails" in pin.features,
-                "enabled_tools": pin.enabled_tools,  # Save enabled tools
-                "last_run": "Never",  # Initialize last_run for new checkers only
+                "enabled_tools": enabled_tools,
+                "last_run": "Never",
             }
 
-            # Add provider-specific credentials using VENDOR_CONFIGS
+            # Add provider-specific credentials
             vendor_config = VENDOR_CONFIGS.get(pin.llm_provider)
             if vendor_config:
                 for field in vendor_config.fields:
@@ -93,6 +104,7 @@ def save_checker(identifier: Optional[str] = None) -> None:
             config["checkers"].append(new_checker)
             save_config(config)
             logger.info(f"Added new checker with ID: {new_checker['id']}")
+            logger.debug(f"Initial tools: {enabled_tools}")
 
         clear("edit_checker_form" if identifier else "new_checker_form")
         refresh_display()
