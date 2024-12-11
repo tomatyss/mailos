@@ -47,7 +47,7 @@ def display_checker_controls(on_control, on_filter=None):
             pin_on_change("status_filter", onchange=on_filter)
 
 
-def display_checker(index, checker, action_callback, status_filter=None):
+def display_checker(checker, action_callback, status_filter=None):
     """Display a single checker with its controls."""
     if status_filter and status_filter != "all":
         if (status_filter == "active" and not checker["enabled"]) or (
@@ -57,6 +57,7 @@ def display_checker(index, checker, action_callback, status_filter=None):
 
     checker_name = checker.get("name", "") or checker["monitor_email"]
     last_run = checker.get("last_run", "Never")
+    checker_id = checker.get("id", "")
 
     put_markdown(
         f"""
@@ -73,16 +74,16 @@ def display_checker(index, checker, action_callback, status_filter=None):
 
     put_buttons(
         [
-            {"label": "✏️ Edit", "value": f"edit_{index}", "color": "info"},
-            {"label": " Copy", "value": f"copy_{index}", "color": "secondary"},
-            {"label": "🗑️ Delete", "value": f"delete_{index}", "color": "danger"},
+            {"label": "✏️ Edit", "value": f"edit_{checker_id}", "color": "info"},
+            {"label": " Copy", "value": f"copy_{checker_id}", "color": "secondary"},
+            {"label": "🗑️ Delete", "value": f"delete_{checker_id}", "color": "danger"},
             {
                 "label": "⏹️ Stop" if checker["enabled"] else "▶️ Run",
-                "value": f"toggle_{index}",
+                "value": f"toggle_{checker_id}",
                 "color": "warning" if checker["enabled"] else "success",
             },
         ],
-        onclick=lambda val: action_callback(index, val),
+        onclick=lambda val: action_callback(checker_id, val),
     )
 
     put_markdown("---")

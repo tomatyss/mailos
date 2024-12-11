@@ -1,18 +1,51 @@
 """UI functions for creating and editing checker forms."""
 
+import logging
+
 from pywebio.output import close_popup, popup, put_buttons, put_markdown, use_scope
-from pywebio.pin import pin_on_change, put_checkbox, put_input, put_select, put_textarea
+from pywebio.pin import (
+    pin,
+    pin_on_change,
+    put_checkbox,
+    put_input,
+    put_select,
+    put_textarea,
+)
 
 from mailos.utils.config_utils import load_config
 from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
 
+logger = logging.getLogger(__name__)
 
-def create_checker_form(index=None, on_save=None):
-    """Create a form for new checker or editing existing one."""
-    config = load_config() if index is not None else {"checkers": []}
-    checker = config["checkers"][index] if index is not None else {}
+
+def create_checker_form(checker_id=None, on_save=None):
+    """Create a form for new checker or editing existing one.
+
+    Args:
+        checker_id: The ID of the checker to edit, or None for new checker
+        on_save: Callback function to save the checker
+    """
+    config = load_config()
+    checker = None
+
+    if checker_id:
+        # Find checker by ID
+        for c in config["checkers"]:
+            if c.get("id") == checker_id:
+                checker = c
+                break
+        if not checker:
+            logger.warning(f"No checker found with ID: {checker_id}")
+            return
+    else:
+        checker = {}
+
     llm_providers = list(LLMFactory._providers.keys())
+
+    # Log the current state
+    logger.debug(f"Creating form for checker ID: {checker_id}")
+    logger.debug(f"Current checker config: {checker}")
 
     # Pre-select current features
     current_features = []
@@ -22,12 +55,20 @@ def create_checker_form(index=None, on_save=None):
         current_features.append("Auto-reply to emails")
 
     def submit_form():
+        # Log form data before submission
+        logger.debug("Form submission - Collecting pin data:")
+        logger.debug(f"checker_name: {pin.checker_name}")
+        logger.debug(f"monitor_email: {pin.monitor_email}")
+        logger.debug(f"imap_server: {pin.imap_server}")
+        logger.debug(f"imap_port: {pin.imap_port}")
+        logger.debug(f"features: {pin.features}")
+
         if on_save:
-            on_save(index)
+            on_save(checker_id)
         close_popup()
 
-    with popup(f"{'Edit' if index is not None else 'New'} Email Checker", size="large"):
-        put_markdown(f"### {'Edit' if index is not None else 'New'} Email Checker")
+    with popup(f"{'Edit' if checker_id else 'New'} Email Checker", size="large"):
+        put_markdown(f"### {'Edit' if checker_id else 'New'} Email Checker")
 
         # Email configuration fields
         put_input(
@@ -51,6 +92,11 @@ def create_checker_form(index=None, on_save=None):
             value=checker.get("password", ""),
         )
 
+        # Log current IMAP server value before creating input
+        logger.debug(
+            "Setting IMAP server input with value: %s",
+            checker.get("imap_server", "imap.gmail.com"),
+        )
         put_input(
             "imap_server",
             type="text",
@@ -69,6 +115,7 @@ def create_checker_form(index=None, on_save=None):
             "features",
             options=["Enable monitoring", "Auto-reply to emails"],
             value=current_features,
+            inline=True,
         )
 
         # LLM configuration
