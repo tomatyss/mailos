@@ -42,6 +42,9 @@ def save_checker(identifier: Optional[str] = None) -> None:
             update_checker_field(identifier, "model", pin.model)
             update_checker_field(identifier, "system_prompt", pin.system_prompt)
 
+            # Update enabled tools
+            update_checker_field(identifier, "enabled_tools", pin.enabled_tools)
+
             # Update provider-specific credentials using VENDOR_CONFIGS
             vendor_config = VENDOR_CONFIGS.get(pin.llm_provider)
             if vendor_config:
@@ -74,6 +77,7 @@ def save_checker(identifier: Optional[str] = None) -> None:
                 "system_prompt": pin.system_prompt,
                 "enabled": "Enable monitoring" in pin.features,
                 "auto_reply": "Auto-reply to emails" in pin.features,
+                "enabled_tools": pin.enabled_tools,  # Save enabled tools
                 "last_run": "Never",  # Initialize last_run for new checkers only
             }
 

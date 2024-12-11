@@ -12,6 +12,7 @@ from pywebio.pin import (
     put_textarea,
 )
 
+from mailos.tools import AVAILABLE_TOOLS
 from mailos.utils.config_utils import load_config
 from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
@@ -54,6 +55,9 @@ def create_checker_form(checker_id=None, on_save=None):
     if checker.get("auto_reply", False):
         current_features.append("Auto-reply to emails")
 
+    # Get currently enabled tools
+    current_tools = checker.get("enabled_tools", [])
+
     def submit_form():
         # Log form data before submission
         logger.debug("Form submission - Collecting pin data:")
@@ -62,6 +66,7 @@ def create_checker_form(checker_id=None, on_save=None):
         logger.debug(f"imap_server: {pin.imap_server}")
         logger.debug(f"imap_port: {pin.imap_port}")
         logger.debug(f"features: {pin.features}")
+        logger.debug(f"enabled_tools: {pin.enabled_tools}")
 
         if on_save:
             on_save(checker_id)
@@ -118,7 +123,21 @@ def create_checker_form(checker_id=None, on_save=None):
             inline=True,
         )
 
+        # Tools selection
+        put_markdown("### Available Tools")
+        put_checkbox(
+            "enabled_tools",
+            options=[
+                {"label": display_name, "value": tool_name}
+                for tool_name, display_name in AVAILABLE_TOOLS
+            ],
+            value=current_tools,
+            inline=True,
+            help_text="Select tools to enable for this checker",
+        )
+
         # LLM configuration
+        put_markdown("### LLM Configuration")
         put_select(
             "llm_provider",
             options=llm_providers,
