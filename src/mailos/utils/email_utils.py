@@ -15,6 +15,7 @@ Usage example:
 """
 
 import smtplib
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Dict, List
@@ -61,6 +62,37 @@ def process_attachments(email_message, sender_email: str) -> List[Dict]:
         return []
 
 
+def attach_files_from_sender_directory(msg: MIMEMultipart, recipient: str) -> None:
+    """Attach all files from the recipient's directory to the email message.
+
+    Args:
+        msg: The email message to attach files to
+        recipient: Email address of the recipient (where files are stored)
+    """
+    try:
+        # Get the recipient's directory where files are stored
+        sender_dir = attachment_manager._get_sender_directory(recipient)
+        if not sender_dir.exists():
+            logger.warning(f"Recipient directory does not exist: {sender_dir}")
+            return
+
+        for filepath in sender_dir.glob("*"):
+            if filepath.is_file():
+                try:
+                    with open(filepath, "rb") as f:
+                        part = MIMEApplication(f.read(), _subtype="pdf")
+                        part.add_header(
+                            "Content-Disposition", "attachment", filename=filepath.name
+                        )
+                        msg.attach(part)
+                        logger.info(f"Attached file: {filepath.name}")
+                except Exception as e:
+                    logger.error(f"Failed to attach file {filepath.name}: {e}")
+
+    except Exception as e:
+        logger.error(f"Error processing recipient directory: {e}")
+
+
 def send_email(
     smtp_server, smtp_port, sender_email, password, recipient, subject, body, email_data
 ):
@@ -93,6 +125,9 @@ def send_email(
         )
 
         msg.attach(MIMEText(full_message, "plain"))
+
+        # Attach files from the recipient's directory
+        attach_files_from_sender_directory(msg, recipient)
 
         with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
             server.login(sender_email, password)

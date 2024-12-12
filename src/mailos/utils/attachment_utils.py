@@ -7,19 +7,47 @@ from email.message import Message
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from mailos.utils.config_utils import get_attachment_settings
 from mailos.utils.logger_utils import logger
+
+
+def extract_email_address(email_string: str) -> str:
+    """Extract pure email address from a string that might include a display name.
+
+    Args:
+        email_string: String that might be "Name <email>" or just "email"
+
+    Returns:
+        Pure email address
+    """
+    match = re.search(r"<([^>]+)>", email_string)
+    if match:
+        return match.group(1)
+
+    # If no angle brackets, try to match just the email address
+    match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", email_string)
+    if match:
+        return match.group(0)
+
+    # If no email pattern found, return the original string
+    return email_string
 
 
 class AttachmentManager:
     """Manages email attachments including extraction, storage, and organization."""
 
-    def __init__(self, base_storage_path: str = "attachments"):
+    def __init__(self, base_storage_path: Optional[str] = None):
         """Initialize the attachment manager.
 
         Args:
-            base_storage_path: Base directory for storing attachments
+            base_storage_path: Optional override for the base storage path
+                       (used in testing)
         """
-        self.base_path = Path(base_storage_path)
+        if base_storage_path is None:
+            settings = get_attachment_settings()
+            self.base_path = Path(settings["base_storage_path"])
+        else:
+            self.base_path = Path(base_storage_path)
         self._ensure_base_directory()
 
     def _ensure_base_directory(self) -> None:
@@ -30,16 +58,58 @@ class AttachmentManager:
         """Get the directory path for a specific sender.
 
         Args:
-            sender_email: Email address of the sender
+            sender_email: Email address of the sender (might include display name)
 
         Returns:
             Path object for the sender's directory
         """
+        # Extract pure email address
+        email = extract_email_address(sender_email)
+
         # Create a safe directory name from the email address
-        safe_name = sender_email.replace("@", "_at_").replace(".", "_")
+        safe_name = email.replace("@", "_at_").replace(".", "_")
         sender_dir = self.base_path / safe_name
         sender_dir.mkdir(parents=True, exist_ok=True)
         return sender_dir
+
+    def save_file(self, content: bytes, filename: str, sender_email: str) -> Dict:
+        """Save a file to the sender's directory.
+
+        Args:
+            content: File content in bytes
+            filename: Original filename
+            sender_email: Email address of the sender
+
+        Returns:
+            Dict containing file metadata
+        """
+        try:
+            sender_dir = self._get_sender_directory(sender_email)
+            unique_filename = self._generate_unique_filename(filename, content)
+            file_path = sender_dir / unique_filename
+
+            # Save the file
+            with open(file_path, "wb") as f:
+                f.write(content)
+
+            # Verify file integrity
+            if not self._verify_file_integrity(file_path, content):
+                raise Exception("File integrity verification failed")
+
+            return {
+                "original_name": filename,
+                "saved_name": unique_filename,
+                "path": str(file_path),
+                "size": len(content),
+                "type": "application/pdf",  # Since this is used for PDFs
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to save file {filename}: {e}")
+            # Clean up failed save attempt
+            if "file_path" in locals() and file_path.exists():
+                file_path.unlink()
+            raise
 
     def _generate_unique_filename(self, original_name: str, file_content: bytes) -> str:
         """Generate a unique filename using content hash to prevent duplicates.
@@ -174,31 +244,13 @@ class AttachmentManager:
 
                 logger.info(f"Processing attachment: {filename}")
 
-                # Generate unique filename
-                unique_filename = self._generate_unique_filename(filename, content)
-                file_path = sender_dir / unique_filename
-
-                # Save the file
-                with open(file_path, "wb") as f:
-                    f.write(content)
-
-                # Verify file integrity
-                if not self._verify_file_integrity(file_path, content):
-                    raise Exception("File integrity verification failed")
-
-                # Record successful save
-                saved_attachments.append(
-                    {
-                        "original_name": filename,
-                        "saved_name": unique_filename,
-                        "path": str(file_path),
-                        "size": len(content),
-                        "type": part.get_content_type(),
-                    }
-                )
+                # Save the file using the common save_file method
+                attachment_info = self.save_file(content, filename, sender_email)
+                saved_attachments.append(attachment_info)
 
                 logger.info(
-                    f"Successfully saved attachment: {filename} -> {unique_filename}"
+                    f"Successfully saved attachment: {filename} -> "
+                    f"{attachment_info['saved_name']}"
                 )
 
             except Exception as e:
@@ -207,9 +259,6 @@ class AttachmentManager:
                     f"{filename if 'filename' in locals() else 'unknown'}: {e}",
                     exc_info=True,
                 )
-                # Clean up failed save attempt
-                if "file_path" in locals() and file_path.exists():
-                    file_path.unlink()
 
         return saved_attachments
 

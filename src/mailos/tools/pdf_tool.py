@@ -1,21 +1,24 @@
 """PDF tool for manipulating PDF files."""
 
 import io
-import os
 from typing import Dict, List, Optional, Union
 
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 
+from mailos.utils.attachment_utils import AttachmentManager
 from mailos.utils.logger_utils import logger
 from mailos.vendors.models import Tool
 
+attachment_manager = AttachmentManager()
 
-def create_pdf(content: str, output_path: str) -> Dict:
+
+def create_pdf(content: str, output_path: str, sender_email: str) -> Dict:
     """Create a new PDF file with the given text content.
 
     Args:
         content: Text content to write to PDF
         output_path: Path where to save the PDF file
+        sender_email: Email address of the sender
 
     Returns:
         Dict with operation status and details
@@ -40,70 +43,81 @@ def create_pdf(content: str, output_path: str) -> Dict:
 
         c.save()
 
-        # Save the PDF to file
-        with open(output_path, "wb") as f:
-            f.write(buffer.getvalue())
+        # Save using attachment manager
+        result = attachment_manager.save_file(
+            buffer.getvalue(), output_path, sender_email
+        )
 
         return {
             "status": "success",
-            "message": f"PDF created successfully at {output_path}",
-            "path": output_path,
+            "message": f"PDF created successfully at {result['path']}",
+            "path": result["path"],
         }
     except Exception as e:
         logger.error(f"Error creating PDF: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 
-def edit_pdf(input_path: str, modifications: Dict[int, str], output_path: str) -> Dict:
+def edit_pdf(
+    input_path: str, modifications: Dict[int, str], output_path: str, sender_email: str
+) -> Dict:
     """Edit text in existing PDF pages.
 
     Args:
         input_path: Path to input PDF file
         modifications: Dict mapping page numbers to new content
         output_path: Path to save modified PDF
+        sender_email: Email address of the sender
 
     Returns:
         Dict with operation status and details
     """
     try:
         # Create new PDF with modifications
-        result = create_pdf(modifications[0], output_path)
+        result = create_pdf(modifications[0], output_path, sender_email)
         if result["status"] == "error":
             return result
 
         return {
             "status": "success",
-            "message": f"PDF modified successfully at {output_path}",
-            "path": output_path,
+            "message": f"PDF modified successfully at {result['path']}",
+            "path": result["path"],
         }
     except Exception as e:
         logger.error(f"Error editing PDF: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 
-def merge_pdfs(input_paths: List[str], output_path: str) -> Dict:
+def merge_pdfs(input_paths: List[str], output_path: str, sender_email: str) -> Dict:
     """Merge multiple PDF files into one.
 
     Args:
         input_paths: List of paths to input PDF files
         output_path: Path to save merged PDF
+        sender_email: Email address of the sender
 
     Returns:
         Dict with operation status and details
     """
     try:
+        # Create merged PDF in memory first
         merger = PdfMerger()
-
         for path in input_paths:
             merger.append(path)
 
-        with open(output_path, "wb") as f:
-            merger.write(f)
+        buffer = io.BytesIO()
+        merger.write(buffer)
+        buffer.seek(0)
+
+        # Save using attachment manager
+        result = attachment_manager.save_file(
+            buffer.getvalue(), output_path, sender_email
+        )
 
         return {
             "status": "success",
-            "message": f"PDFs merged successfully at {output_path}",
-            "path": output_path,
+            "message": f"PDFs merged successfully at {result['path']}",
+            "path": result["path"],
         }
     except Exception as e:
         logger.error(f"Error merging PDFs: {str(e)}")
@@ -145,37 +159,41 @@ def extract_text(
         return {"status": "error", "message": str(e)}
 
 
-def split_pdf(input_path: str, output_dir: str) -> Dict:
+def split_pdf(input_path: str, output_dir: str, sender_email: str) -> Dict:
     """Split PDF into individual pages.
 
     Args:
         input_path: Path to input PDF file
         output_dir: Directory to save split pages
+        sender_email: Email address of the sender
 
     Returns:
         Dict with operation status and details
     """
     try:
         reader = PdfReader(input_path)
-
-        # Create output directory if it doesn't exist
-        os.makedirs(output_dir, exist_ok=True)
+        output_paths = []
 
         # Split into individual pages
-        output_paths = []
         for i, page in enumerate(reader.pages):
             writer = PdfWriter()
             writer.add_page(page)
 
-            output_path = os.path.join(output_dir, f"page_{i+1}.pdf")
-            with open(output_path, "wb") as f:
-                writer.write(f)
-            output_paths.append(output_path)
+            # Create PDF in memory
+            buffer = io.BytesIO()
+            writer.write(buffer)
+            buffer.seek(0)
+
+            # Save using attachment manager
+            filename = f"page_{i+1}.pdf"
+            result = attachment_manager.save_file(
+                buffer.getvalue(), filename, sender_email
+            )
+            output_paths.append(result["path"])
 
         return {
             "status": "success",
             "message": f"PDF split successfully into {len(output_paths)} pages",
-            "output_dir": output_dir,
             "output_paths": output_paths,
         }
     except Exception as e:
@@ -198,9 +216,13 @@ create_pdf_tool = Tool(
                 "type": "string",
                 "description": "Path where to save the PDF file",
             },
+            "sender_email": {
+                "type": "string",
+                "description": "Email address of the sender",
+            },
         },
     },
-    required_params=["content", "output_path"],
+    required_params=["content", "output_path", "sender_email"],
     function=create_pdf,
 )
 
@@ -219,9 +241,13 @@ edit_pdf_tool = Tool(
                 "type": "string",
                 "description": "Path to save modified PDF",
             },
+            "sender_email": {
+                "type": "string",
+                "description": "Email address of the sender",
+            },
         },
     },
-    required_params=["input_path", "modifications", "output_path"],
+    required_params=["input_path", "modifications", "output_path", "sender_email"],
     function=edit_pdf,
 )
 
@@ -237,9 +263,13 @@ merge_pdfs_tool = Tool(
                 "description": "List of paths to input PDF files",
             },
             "output_path": {"type": "string", "description": "Path to save merged PDF"},
+            "sender_email": {
+                "type": "string",
+                "description": "Email address of the sender",
+            },
         },
     },
-    required_params=["input_paths", "output_path"],
+    required_params=["input_paths", "output_path", "sender_email"],
     function=merge_pdfs,
 )
 
@@ -273,8 +303,12 @@ split_pdf_tool = Tool(
                 "type": "string",
                 "description": "Directory to save split pages",
             },
+            "sender_email": {
+                "type": "string",
+                "description": "Email address of the sender",
+            },
         },
     },
-    required_params=["input_path", "output_dir"],
+    required_params=["input_path", "output_dir", "sender_email"],
     function=split_pdf,
 )

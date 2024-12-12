@@ -62,8 +62,15 @@ def create_email_prompt(
     """
     tools_description = ""
     if available_tools:
-        tools_description = "You have access to the following tools:\n" + "\n".join(
-            f"- {tool.name}: {tool.description}" for tool in available_tools
+        tools_description = (
+            "You have access to the following tools:\n"
+            + "\n".join(
+                f"- {tool.name}: {tool.description}" for tool in available_tools
+            )
+            + f"\n\nIMPORTANT: When using tools that create files (like create_pdf), "
+            f"you MUST use the sender's email address ({email_data.sender}) as the "
+            f"sender_email parameter. This ensures files are saved in the correct "
+            f"directory and will be properly attached to your response email."
         )
 
     attachment_context = _build_attachment_context(email_data.attachments or [])
