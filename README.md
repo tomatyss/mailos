@@ -150,24 +150,11 @@ The package consists of several key components:
 
 1. **Email Monitor**: Continuously checks for new emails using IMAP
 
-```python:src/mailos/check_emails.py
-startLine: 29
-endLine: 78
-```
-
 2. **LLM Integration**: Supports multiple AI providers through a unified interface
-
-```python:src/mailos/vendors/models.py
-startLine: 8
-endLine: 65
-```
 
 3. **Reply Handler**: Manages email response generation and filtering
 
-```python:src/mailos/reply.py
-startLine: 169
-endLine: 192
-```
+📚 For more detailed information, check out our [documentation](https://tomatyss.github.io/mailos/).
 
 ## System Requirements
 
