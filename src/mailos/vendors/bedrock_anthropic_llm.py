@@ -2,14 +2,13 @@
 
 import base64
 import json
-import mimetypes
 from io import BytesIO
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 import boto3
 from PIL import Image
 
-from mailos.utils.logger_utils import setup_logger
+from mailos.utils.logger_utils import logger
 from mailos.vendors.base import BaseLLM
 from mailos.vendors.models import (
     Content,
@@ -19,8 +18,6 @@ from mailos.vendors.models import (
     RoleType,
     Tool,
 )
-
-logger = setup_logger("bedrock_anthropic_llm")
 
 # Supported image formats and max size (10MB)
 SUPPORTED_IMAGE_FORMATS = {"image/jpeg", "image/png", "image/gif", "image/webp"}
@@ -73,16 +70,11 @@ class BedrockAnthropicLLM(BaseLLM):
             ValueError: If image validation fails
         """
         try:
-            # Validate MIME type
-            if mime_type is None:
-                mime_type = mimetypes.guess_type(
-                    "dummy" + Image.open(BytesIO(image_data)).format.lower()
-                )[0]
-
-            if mime_type not in SUPPORTED_IMAGE_FORMATS:
+            # Validate MIME type first
+            if mime_type and mime_type not in SUPPORTED_IMAGE_FORMATS:
                 raise ValueError(f"Unsupported image format: {mime_type}")
 
-            # Check file size
+            # Check file size before attempting to open image
             if len(image_data) > MAX_IMAGE_SIZE:
                 raise ValueError(
                     f"Image size exceeds maximum allowed size of "
@@ -91,6 +83,12 @@ class BedrockAnthropicLLM(BaseLLM):
 
             # Open and validate image
             img = Image.open(BytesIO(image_data))
+
+            # Set MIME type if not provided
+            if mime_type is None:
+                mime_type = f"image/{img.format.lower()}"
+                if mime_type not in SUPPORTED_IMAGE_FORMATS:
+                    raise ValueError(f"Unsupported image format: {mime_type}")
 
             # Check dimensions
             if max(img.size) > MAX_IMAGE_DIMENSION:
@@ -101,7 +99,8 @@ class BedrockAnthropicLLM(BaseLLM):
 
                 # Convert back to bytes
                 buffer = BytesIO()
-                img.save(buffer, format=img.format)
+                img.save(buffer, format=img.format or "PNG")
+                buffer.seek(0)
                 image_data = buffer.getvalue()
 
             # Convert to base64
