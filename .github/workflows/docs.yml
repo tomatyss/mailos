@@ -19,31 +19,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
-
+          
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install sphinx sphinx-rtd-theme
-
+          pip install sphinx sphinx-rtd-theme sphinxcontrib-mermaid
+          
       - name: Build documentation
         run: |
           cd docs
           make html
-
+          
       - name: Setup Pages
         uses: actions/configure-pages@v3
-
+        
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
         with:
           path: 'docs/_build/html'
-
+          
   deploy:
     environment:
       name: github-pages
