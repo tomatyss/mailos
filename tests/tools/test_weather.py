@@ -7,10 +7,18 @@ import pytest
 import requests
 from dotenv import load_dotenv
 
-from mailos.tools.weather import get_weather
+from mailos.tools.weather import get_weather, kelvin_to_celsius
 
 # Load environment variables
 load_dotenv()
+
+
+def test_kelvin_to_celsius():
+    """Test Kelvin to Celsius conversion."""
+    assert kelvin_to_celsius(273.15) == 0.0  # 0°C
+    assert kelvin_to_celsius(293.15) == 20.0  # 20°C
+    assert kelvin_to_celsius(373.15) == 100.0  # 100°C
+    assert round(kelvin_to_celsius(283.15), 1) == 10.0  # 10°C
 
 
 def test_weather_api_key_exists():
@@ -39,6 +47,12 @@ def test_get_weather_success(mock_weather_api):
     assert isinstance(data["humidity"], (int, float))
     assert isinstance(data["wind_speed"], (int, float))
     assert isinstance(data["description"], str)
+
+    # Validate data ranges
+    assert -100 < data["temperature"] < 100  # Reasonable temperature range
+    assert 0 <= data["humidity"] <= 100  # Humidity is a percentage
+    assert data["wind_speed"] >= 0  # Non-negative wind speed
+    assert data["description"].istitle()  # Description should be capitalized
 
 
 def test_get_weather_invalid_city(mock_weather_api):
@@ -128,7 +142,9 @@ def test_get_weather_with_units(mock_weather_api):
     assert "units" in result
     assert result["units"]["temperature"] == "°C"
     assert result["units"]["wind_speed"] == "km/h"
+    assert result["units"]["pressure"] == "hPa"
     assert result["units"]["humidity"] == "%"
+    assert result["units"]["precipitation"] == "mm"
 
 
 def test_get_weather_api_error(mock_weather_api):
@@ -141,3 +157,42 @@ def test_get_weather_api_error(mock_weather_api):
     result = get_weather("London,UK")
     assert result["status"] == "error"
     assert "Failed to fetch weather data" in result["message"]
+
+
+def test_get_weather_network_error(mock_weather_api):
+    """Test handling of network errors."""
+    mock_weather_api.ok = False
+    mock_weather_api.raise_for_status.side_effect = requests.exceptions.ConnectionError(
+        "Network error"
+    )
+
+    result = get_weather("London,UK")
+    assert result["status"] == "error"
+    assert "Failed to fetch weather data" in result["message"]
+
+
+def test_get_weather_parse_error(mock_weather_api):
+    """Test handling of response parsing errors."""
+    # Return invalid JSON structure
+    mock_weather_api.json.return_value = {"invalid": "structure"}
+
+    result = get_weather("London,UK")
+    assert result["status"] == "error"
+    assert "Failed to parse weather data" in result["message"]
+
+
+def test_get_weather_optional_fields(mock_weather_api):
+    """Test handling of optional weather fields."""
+    # Add optional fields to mock response
+    mock_response = mock_weather_api.json.return_value
+    mock_response.update(
+        {"rain": {"1h": 2.5}, "snow": {"1h": 0.5}, "clouds": {"all": 75}}
+    )
+
+    result = get_weather("London,UK")
+    assert result["status"] == "success"
+    data = result["data"]
+    assert "rain_1h" in data
+    assert "snow_1h" in data
+    assert "cloudiness" in data
+    assert data["cloudiness"] == 75

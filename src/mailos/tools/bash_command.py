@@ -46,9 +46,11 @@ def execute_bash(
         except subprocess.TimeoutExpired:
             process.kill()
             stdout, stderr = process.communicate()
+            error_msg = "Command timed out"
+            logger.error(f"Error executing bash command: {error_msg}")
             return {
                 "status": "error",
-                "error": "Command timed out",
+                "error": error_msg,
                 "stdout": stdout,
                 "stderr": stderr,
             }

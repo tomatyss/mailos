@@ -1,6 +1,7 @@
 """PDF tool for manipulating PDF files."""
 
 import io
+import os
 from typing import Dict, List, Optional, Union
 
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
@@ -100,10 +101,18 @@ def merge_pdfs(input_paths: List[str], output_path: str, sender_email: str) -> D
         Dict with operation status and details
     """
     try:
+        # Verify all input files exist
+        for path in input_paths:
+            if not os.path.exists(path):
+                error_msg = f"Input file not found: {path}"
+                logger.error(f"Error merging PDFs: {error_msg}")
+                return {"status": "error", "message": error_msg}
+
         # Create merged PDF in memory first
         merger = PdfMerger()
         for path in input_paths:
-            merger.append(path)
+            with open(path, "rb") as f:
+                merger.append(f)
 
         buffer = io.BytesIO()
         merger.write(buffer)
@@ -137,6 +146,9 @@ def extract_text(
         Dict with operation status and extracted text
     """
     try:
+        if not os.path.exists(input_path):
+            return {"status": "error", "message": f"File not found: {input_path}"}
+
         reader = PdfReader(input_path)
 
         if pages is None:
@@ -171,6 +183,9 @@ def split_pdf(input_path: str, output_dir: str, sender_email: str) -> Dict:
         Dict with operation status and details
     """
     try:
+        if not os.path.exists(input_path):
+            return {"status": "error", "message": f"File not found: {input_path}"}
+
         reader = PdfReader(input_path)
         output_paths = []
 

@@ -59,7 +59,7 @@ def get_weather(city: str) -> Dict:
         weather_data = {
             "temperature": round(kelvin_to_celsius(data["main"]["temp"]), 1),
             "feels_like": round(kelvin_to_celsius(data["main"]["feels_like"]), 1),
-            "description": data["weather"][0]["description"].capitalize(),
+            "description": data["weather"][0]["description"].title(),
             "humidity": data["main"]["humidity"],
             "wind_speed": round(data["wind"]["speed"] * 3.6, 1),  # Convert m/s to km/h
             "pressure": data["main"]["pressure"],

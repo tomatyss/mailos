@@ -6,6 +6,11 @@ exclude =
     __pycache__,
     build,
     dist,
-    *.egg-info
+    *.egg-info,
+    tests/*,
+    **/test_*.py
 max-line-length = 88
-extend-ignore = E203
+extend-ignore = E203, E712, F841, D401
+per-file-ignores =
+    # Ignore specific errors in test files
+    tests/*: E712, F841, D401

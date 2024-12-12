@@ -1,5 +1,7 @@
 """Common test fixtures and configurations."""
 
+import sys
+from io import StringIO
 from unittest.mock import MagicMock
 
 import pytest
@@ -137,3 +139,67 @@ def mock_weather_api(monkeypatch):
 
     monkeypatch.setattr("requests.get", mock_get)
     return mock_response
+
+
+# Additional fixtures for tool testing
+
+
+@pytest.fixture
+def temp_file(tmp_path):
+    """Create a temporary file for testing."""
+    file_path = tmp_path / "test_file.txt"
+    file_path.write_text("Test content")
+    return str(file_path)
+
+
+@pytest.fixture
+def temp_pdf(tmp_path):
+    """Create a temporary PDF file for testing."""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+
+    pdf_path = tmp_path / "test.pdf"
+    c = canvas.Canvas(str(pdf_path), pagesize=letter)
+    c.drawString(100, 750, "Test PDF content")
+    c.save()
+    return str(pdf_path)
+
+
+@pytest.fixture
+def mock_subprocess(monkeypatch):
+    """Mock subprocess for bash command testing."""
+    mock = MagicMock()
+    mock.Popen.return_value.communicate.return_value = ("stdout", "stderr")
+    mock.Popen.return_value.returncode = 0
+    monkeypatch.setattr("subprocess.Popen", mock.Popen)
+    return mock
+
+
+@pytest.fixture
+def mock_attachment_manager(monkeypatch, tmp_path):
+    """Mock AttachmentManager for PDF tool testing."""
+    mock = MagicMock()
+
+    def mock_save(content_bytes, filename, *args):
+        # Save the file to a temporary location and return that path
+        file_path = tmp_path / filename
+        with open(file_path, "wb") as f:
+            f.write(content_bytes)
+        return {"path": str(file_path)}
+
+    mock.save_file.side_effect = mock_save
+    monkeypatch.setattr("mailos.tools.pdf_tool.attachment_manager", mock)
+    return mock
+
+
+@pytest.fixture
+def capture_output():
+    """Capture stdout/stderr for Python interpreter testing."""
+    stdout = StringIO()
+    stderr = StringIO()
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    sys.stdout, sys.stderr = stdout, stderr
+
+    yield {"stdout": stdout, "stderr": stderr}
+
+    sys.stdout, sys.stderr = old_stdout, old_stderr
