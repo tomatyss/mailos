@@ -3,13 +3,13 @@ repos:
     rev: v4.5.0
     hooks:
     -   id: trailing-whitespace
-        exclude: ^(docs/|\.flake8|\.ini|\.cfg)
+        exclude: ^(docs/|\.flake8|\.ini|\.cfg|\.github/)
     -   id: end-of-file-fixer
-        exclude: ^(docs/|\.flake8|\.ini|\.cfg)
+        exclude: ^(docs/|\.flake8|\.ini|\.cfg|\.github/)
     -   id: check-yaml
-        exclude: ^docs/_build/
+        exclude: ^(docs/_build/|\.github/)
     -   id: check-added-large-files
-        exclude: ^docs/_build/
+        exclude: ^(docs/_build/|\.github/)
     -   id: check-toml
     -   id: check-merge-conflict
     -   id: debug-statements
@@ -18,7 +18,7 @@ repos:
     rev: 24.2.0
     hooks:
     -   id: black
-        exclude: ^docs/
+        exclude: ^(docs/|\.github/)
 
 -   repo: https://github.com/pycqa/isort
     rev: 5.13.2
