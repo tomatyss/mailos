@@ -8,12 +8,12 @@ from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from mailos.reply import handle_email_reply, should_reply
+from mailos.reply import handle_email_reply
+from mailos.utils.attachment_utils import AttachmentManager
 from mailos.utils.config_utils import load_config, update_checker_field
 from mailos.utils.email_utils import get_email_body
-from mailos.utils.logger_utils import setup_logger
-
-logger = setup_logger("email_checker")
+from mailos.utils.logger_utils import logger
+from mailos.utils.reply_utils import should_reply
 
 
 def check_emails(checker_config):
@@ -26,6 +26,9 @@ def check_emails(checker_config):
         mail.login(checker_config["monitor_email"], checker_config["password"])
 
         logger.info("Connected successfully")
+
+        # Initialize attachment manager
+        attachment_manager = AttachmentManager()
 
         # Select inbox
         status, messages = mail.select("INBOX")
@@ -48,6 +51,46 @@ def check_emails(checker_config):
                         email_body = email_data[0][1]
                         email_message = email.message_from_bytes(email_body)
 
+                        # Debug: Log email structure
+                        logger.info("Email structure:")
+                        for part in email_message.walk():
+                            logger.info(f"Content type: {part.get_content_type()}")
+                            logger.info(
+                                f"Content Disposition: "
+                                f"{part.get('Content-Disposition')}"
+                            )
+                            if part.get_filename():
+                                logger.info(f"Found attachment: {part.get_filename()}")
+
+                        # Extract attachments if present
+                        sender_email = email.utils.parseaddr(email_message["from"])[1]
+                        logger.info(f"Processing attachments from {sender_email}")
+
+                        try:
+                            attachments = attachment_manager.extract_attachments(
+                                email_message, sender_email
+                            )
+
+                            if attachments:
+                                logger.info(
+                                    f"Saved {len(attachments)} attachments from "
+                                    f"{sender_email}"
+                                )
+                                for att in attachments:
+                                    logger.info(
+                                        f"Saved attachment: {att['original_name']} -> "
+                                        f"{att['saved_name']}"
+                                    )
+                                    logger.info(f"Saved to path: {att['path']}")
+                            else:
+                                logger.info("No attachments found in the email")
+
+                        except Exception as e:
+                            logger.error(
+                                f"Error extracting attachments: {str(e)}", exc_info=True
+                            )
+                            attachments = []
+
                         # Create a properly formatted email_data dictionary
                         parsed_email = {
                             "from": email_message["from"],
@@ -56,6 +99,7 @@ def check_emails(checker_config):
                             "msg_date": email_message["date"],
                             "message_id": email_message["message-id"]
                             or f"generated-{num.decode()}",
+                            "attachments": attachments,
                         }
 
                         logger.info(
@@ -74,6 +118,9 @@ def check_emails(checker_config):
                         logger.error(f"Failed to fetch email {num}: {result}")
         else:
             logger.error(f"Search failed: {result}")
+
+        # Manage attachment storage
+        attachment_manager.manage_storage_space()
 
         # Update last_run timestamp using the dedicated function
         checker_id = checker_config.get("id")
@@ -95,7 +142,7 @@ def check_emails(checker_config):
     except imaplib.IMAP4.error as e:
         logger.error(f"IMAP error for {checker_config['monitor_email']}: {str(e)}")
     except Exception as e:
-        logger.error(f"Error processing email: {str(e)}")
+        logger.error(f"Error processing email: {str(e)}", exc_info=True)
 
 
 def main():
@@ -109,6 +156,8 @@ def main():
     for checker in config.get("checkers", []):
         if checker.get("enabled"):
             logger.info(f"Checking {checker['monitor_email']}...")
+            # TODO: Add asyncio support for parallel email checking
+            # TODO: add validation for chekers for the same email
             check_emails(checker)
 
 

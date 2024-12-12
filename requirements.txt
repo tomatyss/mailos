@@ -4,3 +4,5 @@ python-dotenv==1.0.1
 openai==1.57.0
 anthropic==0.40.0
 aioboto3==13.2.0
+PyPDF2==3.0.1
+reportlab==4.2.5

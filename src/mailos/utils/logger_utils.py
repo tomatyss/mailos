@@ -1,5 +1,6 @@
 """Logging utilities."""
 
+import inspect
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -8,15 +9,18 @@ from logging.handlers import RotatingFileHandler
 if not os.path.exists("logs"):
     os.makedirs("logs")
 
+# Global flag to track if root logger has been configured
+_root_configured = False
+# Cache for module loggers
+_loggers = {}
 
-def setup_logger(name, log_level=logging.INFO):
-    """Set up logger for a given name.
 
-    Args:
-        name (str): Logger name
-        log_level: Logging level (default: logging.INFO)
-    """
-    # First, remove all handlers from the root logger to avoid duplicates
+def _configure_root_logger(log_level=logging.INFO):
+    """Configure root logger if not already configured."""
+    global _root_configured
+    if _root_configured:
+        return
+
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
@@ -45,11 +49,55 @@ def setup_logger(name, log_level=logging.INFO):
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 
-    # Get or create logger for the specific name
-    logger = logging.getLogger(name)
-    # Make sure this logger propagates to root
-    logger.propagate = True
-    # Don't add handlers to individual loggers to avoid duplicate logs
-    logger.handlers = []
+    _root_configured = True
 
-    return logger
+
+# Configure root logger at import time
+_configure_root_logger()
+
+
+class LazyLogger:
+    """A proxy that creates the logger only when needed."""
+
+    def __init__(self):
+        self._logger = None
+
+    def __get_logger(self):
+        if self._logger is None:
+            # Get the caller's module name
+            frame = inspect.currentframe()
+            while frame:
+                if frame.f_globals["__name__"] != __name__:
+                    module_name = frame.f_globals["__name__"]
+                    break
+                frame = frame.f_back
+
+            # Create and cache logger
+            if module_name not in _loggers:
+                _loggers[module_name] = logging.getLogger(module_name)
+                _loggers[module_name].propagate = True
+                _loggers[module_name].handlers = []
+
+            self._logger = _loggers[module_name]
+        return self._logger
+
+    def __getattr__(self, name):
+        return getattr(self.__get_logger(), name)
+
+
+# Create a single instance to be imported
+logger = LazyLogger()
+
+
+# For backward compatibility
+def setup_logger(name, log_level=logging.INFO):
+    """Set up logger for a given name (deprecated)."""
+    if name not in _loggers:
+        _loggers[name] = logging.getLogger(name)
+        _loggers[name].propagate = True
+        _loggers[name].handlers = []
+    return _loggers[name]
+
+
+# Export only what's needed
+__all__ = ["logger"]

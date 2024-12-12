@@ -3,6 +3,9 @@
 from pywebio.output import put_buttons, put_grid, put_markdown, use_scope
 from pywebio.pin import pin_on_change, put_select
 
+from mailos.tools import AVAILABLE_TOOLS
+from mailos.utils.logger_utils import logger
+
 
 def display_checker_controls(on_control, on_filter=None):
     """Display the top control buttons."""
@@ -51,13 +54,30 @@ def display_checker(checker, action_callback, status_filter=None):
     """Display a single checker with its controls."""
     if status_filter and status_filter != "all":
         if (status_filter == "active" and not checker["enabled"]) or (
-            status_filter == "paused" and checker["enabled"]
+            status_filter == "inactive" and checker["enabled"]
         ):
             return
 
     checker_name = checker.get("name", "") or checker["monitor_email"]
     last_run = checker.get("last_run", "Never")
     checker_id = checker.get("id", "")
+
+    # Create tools section
+    enabled_tools = checker.get("enabled_tools", [])
+    tools_text = ""
+    if enabled_tools:
+        tool_names = []
+        tool_map = dict(AVAILABLE_TOOLS)
+        for tool_id in enabled_tools:
+            if tool_id in tool_map:
+                tool_names.append(tool_map[tool_id])
+                logger.debug(f"Found tool {tool_id}: {tool_map[tool_id]}")
+            else:
+                logger.warning(f"Unknown tool ID in config: {tool_id}")
+        tools_text = f"\n- Enabled Tools: {', '.join(tool_names)}"
+    else:
+        tools_text = "\n- No tools enabled"
+        logger.debug(f"No tools enabled for checker {checker_id}")
 
     put_markdown(
         f"""
@@ -67,7 +87,7 @@ def display_checker(checker, action_callback, status_filter=None):
 - IMAP Server: {checker['imap_server']}:{checker['imap_port']}
 - Auto-reply: {'✅ Enabled' if checker.get('auto_reply', False) else '❌ Disabled'}
 - LLM Provider: {checker.get('llm_provider', 'Not configured')}
-- Model: {checker.get('model', 'Not configured')}
+- Model: {checker.get('model', 'Not configured')}{tools_text}
 - Last Run: {last_run}
     """
     )

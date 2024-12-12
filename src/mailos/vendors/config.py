@@ -38,8 +38,10 @@ VENDOR_CONFIGS: Dict[str, VendorConfig] = {
                 help_text="Your Anthropic API key",
             ),
         ],
-        default_model="claude-3-sonnet-20240229",
+        default_model="claude-3-5-sonnet-latest",
         supported_models=[
+            "claude-3-5-sonnet-latest",
+            "claude-3-5-haiku-latest",
             "claude-3-opus-20240229",
             "claude-3-sonnet-20240229",
             "claude-3-haiku-20240229",
