@@ -88,7 +88,7 @@ class OpenAILLM(BaseLLM):
                                 "url": (
                                     image_data
                                     if image_data.startswith("data:")
-                                    or image_data.startswith("http")  # noqa E501
+                                    or image_data.startswith("http")
                                     else f"data:{content.mime_type or 'image/jpeg'};base64,{image_data}"  # noqa E501
                                 )
                             },
