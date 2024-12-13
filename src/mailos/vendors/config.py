@@ -57,12 +57,8 @@ VENDOR_CONFIGS: Dict[str, VendorConfig] = {
                 help_text="Your OpenAI API key",
             ),
         ],
-        default_model="gpt-4",
-        supported_models=[
-            "gpt-4",
-            "gpt-4-turbo-preview",
-            "gpt-3.5-turbo",
-        ],
+        default_model="gpt-4o",
+        supported_models=["gpt-4o", "gpt-4o-mini", "o1-preview", "o1-mini"],
     ),
     "bedrock-anthropic": VendorConfig(
         name="AWS Bedrock (Anthropic)",

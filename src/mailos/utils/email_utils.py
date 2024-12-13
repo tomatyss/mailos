@@ -14,8 +14,10 @@ Usage example:
     attachments = process_attachments(email_message, sender_email)
 """
 
+import mimetypes
 import smtplib
 from email.mime.application import MIMEApplication
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Dict, List
@@ -62,35 +64,80 @@ def process_attachments(email_message, sender_email: str) -> List[Dict]:
         return []
 
 
-def attach_files_from_sender_directory(msg: MIMEMultipart, recipient: str) -> None:
-    """Attach all files from the recipient's directory to the email message.
+def _get_mime_type(filename: str) -> tuple[str, str]:
+    """Get the MIME type and subtype for a file.
+
+    Args:
+        filename: Name of the file
+
+    Returns:
+        Tuple of (maintype, subtype)
+    """
+    mime_type, _ = mimetypes.guess_type(filename)
+    if mime_type:
+        maintype, subtype = mime_type.split("/")
+        return maintype, subtype
+    return "application", "octet-stream"
+
+
+def attach_files_from_current_thread(
+    msg: MIMEMultipart, recipient: str, email_data: Dict
+) -> None:
+    """Attach only the files from the current email thread to the reply.
 
     Args:
         msg: The email message to attach files to
         recipient: Email address of the recipient (where files are stored)
+        email_data: Dictionary containing the current email thread data
     """
     try:
-        # Get the recipient's directory where files are stored
+        # Get attachments from the current thread
+        current_attachments = email_data.get("attachments", [])
+        if not current_attachments:
+            logger.debug("No attachments in current thread")
+            return
+
+        # Get the recipient's directory
         sender_dir = attachment_manager._get_sender_directory(recipient)
         if not sender_dir.exists():
             logger.warning(f"Recipient directory does not exist: {sender_dir}")
             return
 
-        for filepath in sender_dir.glob("*"):
+        # Only attach files that are part of the current thread
+        for attachment in current_attachments:
+            filepath = sender_dir / attachment["saved_name"]
             if filepath.is_file():
                 try:
+                    maintype, subtype = _get_mime_type(filepath.name)
                     with open(filepath, "rb") as f:
-                        part = MIMEApplication(f.read(), _subtype="pdf")
+                        content = f.read()
+
+                        if maintype == "image":
+                            # Use MIMEImage for images
+                            part = MIMEImage(content, _subtype=subtype)
+                        else:
+                            # Use MIMEApplication for other files
+                            part = MIMEApplication(content, _subtype=subtype)
+
+                        # Use original filename in the attachment
                         part.add_header(
-                            "Content-Disposition", "attachment", filename=filepath.name
+                            "Content-Disposition",
+                            "attachment",
+                            filename=attachment["original_name"],
                         )
                         msg.attach(part)
-                        logger.info(f"Attached file: {filepath.name}")
+                        logger.info(
+                            f"Attached file from current thread: "
+                            f"{attachment['original_name']} "
+                            f"(type: {maintype}/{subtype})"
+                        )
                 except Exception as e:
-                    logger.error(f"Failed to attach file {filepath.name}: {e}")
+                    logger.error(
+                        f"Failed to attach file {attachment['original_name']}: {e}"
+                    )
 
     except Exception as e:
-        logger.error(f"Error processing recipient directory: {e}")
+        logger.error(f"Error attaching files from current thread: {e}")
 
 
 def send_email(
@@ -126,8 +173,8 @@ def send_email(
 
         msg.attach(MIMEText(full_message, "plain"))
 
-        # Attach files from the recipient's directory
-        attach_files_from_sender_directory(msg, recipient)
+        # Attach only files from the current thread
+        attach_files_from_current_thread(msg, recipient, email_data)
 
         with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
             server.login(sender_email, password)

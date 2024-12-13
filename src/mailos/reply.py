@@ -139,14 +139,27 @@ def process_attachments(attachments: List[Dict[str, Any]]) -> List[Content]:
         List of Content objects for valid images
     """
     image_contents = []
+    logger.debug(f"Processing {len(attachments)} attachments")
 
     for attachment in attachments:
+        logger.debug(
+            f"Checking attachment: {attachment['original_name']} "
+            f"(type: {attachment['type']})"
+        )
+
         if attachment["type"] not in SUPPORTED_IMAGE_TYPES:
+            logger.debug(
+                f"Skipping unsupported type {attachment['type']}. "
+                f"Supported types: {SUPPORTED_IMAGE_TYPES}"
+            )
             continue
 
         try:
             with open(attachment["path"], "rb") as f:
                 image_data = f.read()
+                logger.debug(
+                    f"Read {len(image_data)} bytes from {attachment['original_name']}"
+                )
 
             image_contents.append(
                 Content(
@@ -155,10 +168,17 @@ def process_attachments(attachments: List[Dict[str, Any]]) -> List[Content]:
                     mime_type=attachment["type"],
                 )
             )
-            logger.info(f"Successfully processed image: {attachment['original_name']}")
+            logger.info(
+                f"Successfully processed image: {attachment['original_name']} "
+                f"({len(image_data)} bytes, type: {attachment['type']})"
+            )
         except Exception as e:
-            logger.error(f"Failed to process image {attachment['original_name']}: {e}")
+            logger.error(
+                f"Failed to process image {attachment['original_name']}: {str(e)}",
+                exc_info=True,
+            )
 
+    logger.debug(f"Processed {len(image_contents)} valid images")
     return image_contents
 
 
@@ -231,9 +251,14 @@ def handle_email_reply(
         # Process attachments - always try to include images
         image_contents: List[Content] = []
         if structured_email.attachments:
+            logger.debug(
+                f"Found {len(structured_email.attachments)} attachments in email"
+            )
             image_contents = process_attachments(structured_email.attachments)
             if image_contents:
                 logger.info(f"Processing {len(image_contents)} images")
+            else:
+                logger.debug("No valid images found in attachments")
 
         # Setup enabled tools
         enabled_tools = [
@@ -251,7 +276,12 @@ def handle_email_reply(
                 ),
             )
         ]
-        message_content.extend(image_contents)
+        if image_contents:
+            logger.debug(
+                f"Adding {len(image_contents)} images to message content "
+                f"for {checker_config['llm_provider']}"
+            )
+            message_content.extend(image_contents)
 
         # Generate response
         messages = [
@@ -259,7 +289,7 @@ def handle_email_reply(
                 role=RoleType.SYSTEM,
                 content=[
                     Content(
-                        type="text",
+                        type=ContentType.TEXT,
                         data=checker_config.get(
                             "system_prompt", "You are a helpful email assistant."
                         ),
@@ -268,6 +298,12 @@ def handle_email_reply(
             ),
             Message(role=RoleType.USER, content=message_content),
         ]
+
+        logger.debug(
+            f"Sending request to {checker_config['llm_provider']} with "
+            f"{len(messages)} messages ({len(message_content)} content items "
+            f"in user message)"
+        )
 
         response = llm.generate_sync(
             messages=messages,
@@ -300,5 +336,5 @@ def handle_email_reply(
             return False
 
     except Exception as e:
-        logger.error(f"Error in handle_email_reply: {str(e)}")
+        logger.error(f"Error in handle_email_reply: {str(e)}", exc_info=True)
         return False

@@ -12,6 +12,7 @@ def should_reply(email_data):
         "mailer-daemon",
         "postmaster",
     ]
+    # TODO: add option to set custom no-reply indicators in ui
 
     sender = email_data["from"].lower()
     subject = email_data["subject"].lower()
