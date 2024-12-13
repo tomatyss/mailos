@@ -21,6 +21,7 @@ Mailos transforms emails into a sophisticated multi-agent ecosystem:
 - 🌐 Web-based Configuration Interface
 - ⏱️ Scheduled Email Checking
 - 🛠️ Extensible Tool System
+- 🔒 Optional Authentication System
 
 ## 🚀 Installation
 
@@ -46,6 +47,22 @@ mailos
    - System prompts
 
 ## ⚙️ Configuration
+
+### Authentication Settings
+
+By default, the web interface is accessible without authentication. To enable authentication:
+
+```bash
+# Enable authentication
+export MAILOS_AUTH_ENABLED=true
+
+# Optional: Configure custom credentials (defaults to admin/admin)
+export MAILOS_AUTH_USERNAME=your_username
+export MAILOS_AUTH_PASSWORD=your_password
+
+# Start Mailos
+mailos
+```
 
 ### Email Settings
 - IMAP server and port

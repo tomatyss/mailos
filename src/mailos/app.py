@@ -17,6 +17,7 @@ from mailos.check_emails import init_scheduler
 from mailos.check_emails import main as check_emails_main
 from mailos.ui.checker_form import create_checker_form
 from mailos.ui.display import display_checkers, refresh_display
+from mailos.utils.auth_utils import require_auth
 from mailos.utils.config_utils import load_config, save_config
 from mailos.utils.logger_utils import logger, parse_log_level, set_log_level
 from mailos.vendors.config import VENDOR_CONFIGS
@@ -160,6 +161,7 @@ def ensure_checker_ids(config: Dict) -> bool:
     return modified
 
 
+@require_auth
 def check_email_app():
     """Run the main web application."""
     global scheduler
