@@ -87,14 +87,15 @@ class BaseLLM(ABC):
         """Execute a tool and format its result.
 
         Args:
-            tool_call: Tool call details including name, input, and id
+            tool_call: Tool call details including name and either input or arguments
             available_tools: List of available tools
 
         Returns:
             Formatted tool result
         """
         tool_name = tool_call["name"]
-        tool_input = tool_call["input"]
+        # Handle both input and arguments keys for different vendor implementations
+        tool_input = tool_call.get("input") or tool_call.get("arguments", {})
         tool_id = tool_call["id"]
 
         # Find the matching tool

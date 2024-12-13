@@ -163,8 +163,21 @@ class OpenAILLM(BaseLLM):
             "role": "assistant",
             "content": raw_response.choices[0].message.content,
         }
+
+        # Convert tool calls to serializable format
         if raw_response.choices[0].message.tool_calls:
-            assistant_message["tool_calls"] = raw_response.choices[0].message.tool_calls
+            assistant_message["tool_calls"] = [
+                {
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.function.name,
+                        "arguments": tool_call.function.arguments,
+                    },
+                }
+                for tool_call in raw_response.choices[0].message.tool_calls
+            ]
+
         messages.append(assistant_message)
 
         # Add tool results
@@ -197,8 +210,16 @@ class OpenAILLM(BaseLLM):
                 kwargs["tools"] = tools
                 kwargs["tool_choice"] = self.tool_choice
 
+            # Convert messages to JSON-serializable format for logging
+            log_kwargs = kwargs.copy()
+            if "messages" in log_kwargs:
+                log_kwargs["messages"] = [
+                    {k: v for k, v in msg.items() if k != "tool_calls"}
+                    for msg in log_kwargs["messages"]
+                ]
+
             logger.debug(
-                f"Making OpenAI request with config: {json.dumps(kwargs, indent=2)}"
+                f"Making OpenAI request with config: {json.dumps(log_kwargs, indent=2)}"
             )
 
             return await asyncio.to_thread(
