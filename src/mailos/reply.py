@@ -20,7 +20,6 @@ from mailos.vendors.models import Content, ContentType, Message, RoleType
 # Constants
 SUPPORTED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 DEFAULT_SMTP_PORT = 465  # Standard SSL port for SMTP
-IMAGE_CAPABLE_MODELS = {"claude-3", "claude-3-5"}
 
 
 @dataclass
@@ -229,14 +228,9 @@ def handle_email_reply(
             logger.error("Failed to initialize LLM or sync generation not supported")
             return False
 
-        # Process attachments if supported
+        # Process attachments - always try to include images
         image_contents: List[Content] = []
-        model_name = checker_config["model"].lower()
-        model_supports_images = any(
-            prefix in model_name for prefix in IMAGE_CAPABLE_MODELS
-        )
-
-        if structured_email.attachments and model_supports_images:
+        if structured_email.attachments:
             image_contents = process_attachments(structured_email.attachments)
             if image_contents:
                 logger.info(f"Processing {len(image_contents)} images")
