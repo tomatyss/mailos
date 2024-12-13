@@ -1,6 +1,7 @@
 """Utilities for handling email attachments."""
 
 import hashlib
+import mimetypes
 import os
 import re
 from email.message import Message
@@ -72,13 +73,45 @@ class AttachmentManager:
         sender_dir.mkdir(parents=True, exist_ok=True)
         return sender_dir
 
-    def save_file(self, content: bytes, filename: str, sender_email: str) -> Dict:
+    def _get_mime_type(self, filename: str, content_type: Optional[str] = None) -> str:
+        """Get MIME type for a file.
+
+        Args:
+            filename: Name of the file
+            content_type: Optional Content-Type from email part
+
+        Returns:
+            MIME type string
+        """
+        # First try the provided Content-Type
+        if content_type:
+            # Extract base mime type without parameters
+            match = re.match(r"^([^;]+)", content_type)
+            if match:
+                return match.group(1).strip()
+
+        # Then try to guess from file extension
+        mime_type, _ = mimetypes.guess_type(filename)
+        if mime_type:
+            return mime_type
+
+        # Default to application/octet-stream if type cannot be determined
+        return "application/octet-stream"
+
+    def save_file(
+        self,
+        content: bytes,
+        filename: str,
+        sender_email: str,
+        content_type: Optional[str] = None,
+    ) -> Dict:
         """Save a file to the sender's directory.
 
         Args:
             content: File content in bytes
             filename: Original filename
             sender_email: Email address of the sender
+            content_type: Optional Content-Type from email part
 
         Returns:
             Dict containing file metadata
@@ -96,12 +129,19 @@ class AttachmentManager:
             if not self._verify_file_integrity(file_path, content):
                 raise Exception("File integrity verification failed")
 
+            # Get correct MIME type, preferring Content-Type from email
+            mime_type = self._get_mime_type(filename, content_type)
+            logger.debug(
+                f"Determined MIME type for {filename}: {mime_type} "
+                f"(from {'Content-Type header' if content_type else 'file extension'})"
+            )
+
             return {
                 "original_name": filename,
                 "saved_name": unique_filename,
                 "path": str(file_path),
                 "size": len(content),
-                "type": "application/pdf",  # Since this is used for PDFs
+                "type": mime_type,
             }
 
         except Exception as e:
@@ -245,12 +285,18 @@ class AttachmentManager:
                 logger.info(f"Processing attachment: {filename}")
 
                 # Save the file using the common save_file method
-                attachment_info = self.save_file(content, filename, sender_email)
+                # Pass the Content-Type from the email part
+                attachment_info = self.save_file(
+                    content,
+                    filename,
+                    sender_email,
+                    content_type=part.get_content_type(),
+                )
                 saved_attachments.append(attachment_info)
 
                 logger.info(
                     f"Successfully saved attachment: {filename} -> "
-                    f"{attachment_info['saved_name']}"
+                    f"{attachment_info['saved_name']} ({attachment_info['type']})"
                 )
 
             except Exception as e:

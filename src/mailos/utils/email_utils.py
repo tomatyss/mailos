@@ -14,8 +14,10 @@ Usage example:
     attachments = process_attachments(email_message, sender_email)
 """
 
+import mimetypes
 import smtplib
 from email.mime.application import MIMEApplication
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Dict, List
@@ -62,6 +64,22 @@ def process_attachments(email_message, sender_email: str) -> List[Dict]:
         return []
 
 
+def _get_mime_type(filename: str) -> tuple[str, str]:
+    """Get the MIME type and subtype for a file.
+
+    Args:
+        filename: Name of the file
+
+    Returns:
+        Tuple of (maintype, subtype)
+    """
+    mime_type, _ = mimetypes.guess_type(filename)
+    if mime_type:
+        maintype, subtype = mime_type.split("/")
+        return maintype, subtype
+    return "application", "octet-stream"
+
+
 def attach_files_from_sender_directory(msg: MIMEMultipart, recipient: str) -> None:
     """Attach all files from the recipient's directory to the email message.
 
@@ -79,13 +97,25 @@ def attach_files_from_sender_directory(msg: MIMEMultipart, recipient: str) -> No
         for filepath in sender_dir.glob("*"):
             if filepath.is_file():
                 try:
+                    maintype, subtype = _get_mime_type(filepath.name)
                     with open(filepath, "rb") as f:
-                        part = MIMEApplication(f.read(), _subtype="pdf")
+                        content = f.read()
+
+                        if maintype == "image":
+                            # Use MIMEImage for images
+                            part = MIMEImage(content, _subtype=subtype)
+                        else:
+                            # Use MIMEApplication for other files
+                            part = MIMEApplication(content, _subtype=subtype)
+
                         part.add_header(
                             "Content-Disposition", "attachment", filename=filepath.name
                         )
                         msg.attach(part)
-                        logger.info(f"Attached file: {filepath.name}")
+                        logger.info(
+                            f"Attached file: {filepath.name} "
+                            f"(type: {maintype}/{subtype})"
+                        )
                 except Exception as e:
                     logger.error(f"Failed to attach file {filepath.name}: {e}")
 

@@ -9,21 +9,41 @@ from logging.handlers import RotatingFileHandler
 if not os.path.exists("logs"):
     os.makedirs("logs")
 
-# Global flag to track if root logger has been configured
-_root_configured = False
 # Cache for module loggers
 _loggers = {}
+# Cache for handlers
+_handlers = []
+
+
+def set_log_level(level):
+    """Set the log level for all loggers and handlers.
+
+    Args:
+        level: Logging level (e.g., logging.DEBUG, logging.INFO)
+    """
+    # Update root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+
+    # Update all cached loggers
+    for logger in _loggers.values():
+        logger.setLevel(level)
+
+    # Update all handlers
+    for handler in _handlers:
+        handler.setLevel(level)
 
 
 def _configure_root_logger(log_level=logging.INFO):
-    """Configure root logger if not already configured."""
-    global _root_configured
-    if _root_configured:
-        return
-
+    """Configure root logger with handlers."""
     root_logger = logging.getLogger()
+
+    # Remove any existing handlers
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
+
+    # Clear cached handlers
+    _handlers.clear()
 
     # Set the root logger level
     root_logger.setLevel(log_level)
@@ -49,11 +69,42 @@ def _configure_root_logger(log_level=logging.INFO):
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 
-    _root_configured = True
+    # Cache handlers for later level updates
+    _handlers.extend([file_handler, console_handler])
 
 
-# Configure root logger at import time
-_configure_root_logger()
+# Configure root logger at import time with INFO level
+_configure_root_logger(logging.INFO)
+
+
+def parse_log_level(level_str: str) -> int:
+    """Parse string log level to logging constant.
+
+    Args:
+        level_str: String representation of log level
+
+    Returns:
+        Logging level constant
+
+    Raises:
+        ValueError: If level string is invalid
+    """
+    level_map = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+
+    level_str = level_str.lower()
+    if level_str not in level_map:
+        raise ValueError(
+            f"Invalid log level: {level_str}. "
+            f"Valid levels are: {', '.join(level_map.keys())}"
+        )
+
+    return level_map[level_str]
 
 
 class LazyLogger:
@@ -76,6 +127,8 @@ class LazyLogger:
             if module_name not in _loggers:
                 _loggers[module_name] = logging.getLogger(module_name)
                 _loggers[module_name].propagate = True
+                # Don't add handlers to module loggers,
+                # they'll use root logger's handlers
                 _loggers[module_name].handlers = []
 
             self._logger = _loggers[module_name]
@@ -89,15 +142,27 @@ class LazyLogger:
 logger = LazyLogger()
 
 
-# For backward compatibility
-def setup_logger(name, log_level=logging.INFO):
-    """Set up logger for a given name (deprecated)."""
+def setup_logger(name, log_level=None):
+    """Set up logger for a given name.
+
+    Args:
+        name: Logger name
+        log_level: Optional log level (if not provided, uses root logger's level)
+
+    Returns:
+        Logger instance
+    """
     if name not in _loggers:
         _loggers[name] = logging.getLogger(name)
         _loggers[name].propagate = True
+        # Don't add handlers to module loggers, they'll use root logger's handlers
         _loggers[name].handlers = []
+
+        if log_level is not None:
+            _loggers[name].setLevel(log_level)
+
     return _loggers[name]
 
 
-# Export only what's needed
-__all__ = ["logger"]
+# Export public interface
+__all__ = ["logger", "setup_logger", "set_log_level", "parse_log_level"]

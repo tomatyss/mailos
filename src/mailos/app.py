@@ -5,7 +5,6 @@ This module provides a web interface for managing email monitoring configuration
 using PyWebIO.
 """
 
-import logging
 import uuid
 from dataclasses import dataclass
 from typing import Dict, List, Optional
@@ -19,7 +18,7 @@ from mailos.check_emails import main as check_emails_main
 from mailos.ui.checker_form import create_checker_form
 from mailos.ui.display import display_checkers, refresh_display
 from mailos.utils.config_utils import load_config, save_config
-from mailos.utils.logger_utils import logger
+from mailos.utils.logger_utils import logger, parse_log_level, set_log_level
 from mailos.vendors.config import VENDOR_CONFIGS
 
 scheduler = None
@@ -194,15 +193,17 @@ def cli():
     @click.option(
         "--log-level",
         type=click.Choice(
-            ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False
+            ["debug", "info", "warning", "error", "critical"], case_sensitive=False
         ),
-        default="INFO",
+        default="info",
         help="Set the logging level",
     )
     def run(log_level: str):
         """Run the web application with specified log level."""
-        # Set log level on root logger
-        logging.getLogger().setLevel(getattr(logging, log_level.upper()))
+        # Use our logger_utils functions to set the log level
+        level = parse_log_level(log_level)
+        set_log_level(level)
+
         logger.debug("Starting application with log level: %s", log_level)
         init_scheduler()
         start_server(check_email_app, port=8080, debug=True)
