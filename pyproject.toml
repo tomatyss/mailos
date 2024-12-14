@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mailos"
-version = "0.1.1"
+version = "0.1.2"
 description = "An AI-powered email monitoring and response system"
 readme = "README.md"
 authors = [{ name = "Ivan Iufriakov", email = "tomatyss@gmail.com" }]
@@ -23,6 +23,8 @@ dependencies = [
     "aioboto3>=13.2.0",
     "click>=8.1.7",
     "requests>=2.32.3",
+    "PyPDF2>=3.0.1",
+    "reportlab>=4.2.5",
 ]
 requires-python = ">=3.8"
 
