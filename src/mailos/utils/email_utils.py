@@ -185,6 +185,7 @@ def send_email(
 
     except Exception as e:
         logger.error(
-            f"Failed to send reply: {str(e)}", exc_info=True
-        )  # Added exc_info for better error tracking
+            f"Failed to send reply: {str(e)}",  # Removed backslash and added comma
+            exc_info=True,
+        )
         return False
