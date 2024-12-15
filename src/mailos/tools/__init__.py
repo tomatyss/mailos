@@ -1,5 +1,6 @@
 """Tools package for MailOS."""
 
+from .arxiv_tool import arxiv_tool
 from .bash_command import bash_command_tool
 from .pdf_tool import (
     create_pdf_tool,
@@ -23,6 +24,7 @@ AVAILABLE_TOOLS = [
     ("python_interpreter_tool", "Python Code Execution"),
     ("bash_command_tool", "Bash Command Execution"),
     ("web_search_tool", "Web Search"),
+    ("arxiv_tool", "ArXiv Paper Search"),
 ]
 
 # Map of tool names to actual tool objects
@@ -36,6 +38,7 @@ TOOL_MAP = {
     "python_interpreter_tool": python_interpreter_tool,
     "bash_command_tool": bash_command_tool,
     "web_search_tool": web_search_tool,
+    "arxiv_tool": arxiv_tool,
 }
 
 __all__ = [
@@ -48,6 +51,7 @@ __all__ = [
     "python_interpreter_tool",
     "bash_command_tool",
     "web_search_tool",
+    "arxiv_tool",
     "AVAILABLE_TOOLS",
     "TOOL_MAP",
 ]
