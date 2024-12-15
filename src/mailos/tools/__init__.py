@@ -10,6 +10,7 @@ from .pdf_tool import (
 )
 from .python_interpreter import python_interpreter_tool
 from .weather import weather_tool
+from .web_search import web_search_tool
 
 # List of all available tools with their display names
 AVAILABLE_TOOLS = [
@@ -21,6 +22,7 @@ AVAILABLE_TOOLS = [
     ("split_pdf_tool", "Split PDF"),
     ("python_interpreter_tool", "Python Code Execution"),
     ("bash_command_tool", "Bash Command Execution"),
+    ("web_search_tool", "Web Search"),
 ]
 
 # Map of tool names to actual tool objects
@@ -33,6 +35,7 @@ TOOL_MAP = {
     "split_pdf_tool": split_pdf_tool,
     "python_interpreter_tool": python_interpreter_tool,
     "bash_command_tool": bash_command_tool,
+    "web_search_tool": web_search_tool,
 }
 
 __all__ = [
@@ -44,6 +47,7 @@ __all__ = [
     "split_pdf_tool",
     "python_interpreter_tool",
     "bash_command_tool",
+    "web_search_tool",
     "AVAILABLE_TOOLS",
     "TOOL_MAP",
 ]
