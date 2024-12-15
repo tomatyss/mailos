@@ -6,3 +6,5 @@ anthropic==0.40.0
 aioboto3==13.2.0
 PyPDF2==3.0.1
 reportlab==4.2.5
+beautifulsoup4==4.12.3
+arxiv==2.1.3
