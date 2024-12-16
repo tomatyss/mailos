@@ -94,11 +94,9 @@ class BaseLLM(ABC):
             Formatted tool result
         """
         tool_name = tool_call["name"]
-        # Handle both input and arguments keys for different vendor implementations
         tool_input = tool_call.get("input") or tool_call.get("arguments", {})
         tool_id = tool_call["id"]
 
-        # Find the matching tool
         tool = next((t for t in available_tools if t.name == tool_name), None)
         if not tool:
             logger.error(f"Tool {tool_name} not found")
@@ -110,12 +108,11 @@ class BaseLLM(ABC):
             }
 
         try:
-            # Execute the tool
             result = await asyncio.to_thread(tool.function, **tool_input)
             return {
                 "type": "tool_result",
                 "tool_use_id": tool_id,
-                "content": str(result),  # Ensure result is string
+                "content": str(result),
             }
         except Exception as e:
             error_msg = f"Error executing {tool_name}: {str(e)}"
@@ -126,65 +123,6 @@ class BaseLLM(ABC):
                 "content": error_msg,
                 "is_error": True,
             }
-
-    async def _process_response(
-        self, raw_response: Any, tools: List[Tool], tool_call_count: int = 0
-    ) -> LLMResponse:
-        """Process a response, handling any tool uses recursively.
-
-        Args:
-            raw_response: Raw vendor response
-            tools: List of available tools
-            tool_call_count: Current number of tool calls made
-
-        Returns:
-            Processed LLMResponse
-        """
-        # Check if we've exceeded the maximum number of tool calls
-        if tool_call_count >= self.max_tool_calls:
-            logger.warning(f"Exceeded maximum tool calls ({self.max_tool_calls})")
-            return LLMResponse(
-                content=[
-                    Content(
-                        type="text",
-                        data=(
-                            f"Error: Exceeded maximum number of tool calls "
-                            f"({self.max_tool_calls})"
-                        ),
-                    )
-                ],
-                model=self.model,
-                finish_reason="max_tools_exceeded",
-            )
-
-        # Extract tool calls from response (vendor-specific implementation)
-        tool_calls = self._extract_tool_calls(raw_response)
-        if not tool_calls:
-            return self._create_response(raw_response)
-
-        # Execute all tools and collect results
-        tool_results = []
-
-        for tool_call in tool_calls:
-            result = await self._execute_tool(tool_call, tools)
-            tool_results.append(result)
-            if result.get("is_error"):
-                logger.error(f"Tool execution error: {result['content']}")
-
-        # Format and make next request with tool results
-        messages = self._format_tool_results(raw_response, tool_results)
-        tools_format = self._format_tools(tools)
-
-        new_response = await self._make_request(messages, tools_format)
-
-        # Check if new response has tool calls
-        if self._has_tool_calls(new_response):
-            return await self._process_response(
-                new_response, tools, tool_call_count + 1
-            )
-
-        # Return final response
-        return self._create_response(new_response, tool_calls)
 
     @abstractmethod
     def _extract_tool_calls(self, raw_response: Any) -> List[Dict]:
@@ -250,7 +188,56 @@ class BaseLLM(ABC):
             if stream:
                 return self._stream_response(raw_response)
 
-            return await self._process_response(raw_response, tools or [])
+            tool_call_count = 0
+            while True:
+                # Check max tool calls limit
+                if tool_call_count >= self.max_tool_calls:
+                    logger.warning(
+                        f"Exceeded maximum tool calls ({self.max_tool_calls})"
+                    )
+                    return LLMResponse(
+                        content=[
+                            Content(
+                                type="text",
+                                data=(
+                                    f"Error: Exceeded maximum tool calls "
+                                    f"({self.max_tool_calls})"
+                                ),
+                            )
+                        ],
+                        model=self.model,
+                        finish_reason="max_tools_exceeded",
+                    )
+
+                # Extract tool calls from response
+                tool_calls = self._extract_tool_calls(raw_response)
+                if not tool_calls:
+                    # No more tool calls, return final response
+                    return self._create_response(raw_response)
+
+                # Execute all tools and collect results
+                tool_results = []
+                for tool_call in tool_calls:
+                    result = await self._execute_tool(tool_call, tools or [])
+                    tool_results.append(result)
+                    if result.get("is_error"):
+                        logger.error(f"Tool execution error: {result['content']}")
+
+                # Format messages with tool results
+                formatted_messages = self._format_tool_results(
+                    raw_response, tool_results
+                )
+                formatted_tools = self._format_tools(tools)
+
+                # Make next request with tool results
+                try:
+                    raw_response = await self._make_request(
+                        formatted_messages, formatted_tools
+                    )
+                    tool_call_count += 1
+                except Exception as e:
+                    logger.error(f"Error in tool call loop: {str(e)}")
+                    return self._create_response(raw_response, tool_calls)
 
         except Exception as e:
             logger.error(f"Generation error: {str(e)}")
