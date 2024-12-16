@@ -9,7 +9,7 @@ This module contains functions for handling email replies, including:
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-from mailos.tools import TOOL_MAP
+from mailos.tools import TOOL_MAP, set_llm_instance
 from mailos.utils.config_utils import get_attachment_settings
 from mailos.utils.email_utils import send_email
 from mailos.utils.logger_utils import logger
@@ -214,7 +214,14 @@ def _initialize_llm(checker_config: Dict[str, Any]):
         elif field.default is not None:
             llm_args[field_name] = field.default
 
-    return LLMFactory.create(**llm_args)
+    llm = LLMFactory.create(**llm_args)
+
+    # Set up the planner tool with the initialized LLM instance
+    if llm:
+        set_llm_instance(llm)
+        logger.debug("Initialized planner tool with LLM instance")
+
+    return llm
 
 
 def handle_email_reply(

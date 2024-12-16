@@ -9,6 +9,7 @@ from .pdf_tool import (
     merge_pdfs_tool,
     split_pdf_tool,
 )
+from .planner import planner_tool, set_llm_instance
 from .python_interpreter import python_interpreter_tool
 from .weather import weather_tool
 from .web_search import web_search_tool
@@ -25,6 +26,7 @@ AVAILABLE_TOOLS = [
     ("bash_command_tool", "Bash Command Execution"),
     ("web_search_tool", "Web Search"),
     ("arxiv_tool", "ArXiv Paper Search"),
+    ("planner_tool", "Task Planner"),
 ]
 
 # Map of tool names to actual tool objects
@@ -39,6 +41,7 @@ TOOL_MAP = {
     "bash_command_tool": bash_command_tool,
     "web_search_tool": web_search_tool,
     "arxiv_tool": arxiv_tool,
+    "planner_tool": planner_tool,
 }
 
 __all__ = [
@@ -52,6 +55,8 @@ __all__ = [
     "bash_command_tool",
     "web_search_tool",
     "arxiv_tool",
+    "planner_tool",
+    "set_llm_instance",
     "AVAILABLE_TOOLS",
     "TOOL_MAP",
 ]
