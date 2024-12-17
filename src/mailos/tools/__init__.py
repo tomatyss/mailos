@@ -2,6 +2,7 @@
 
 from .arxiv_tool import arxiv_tool
 from .bash_command import bash_command_tool
+from .email_tool import email_tool
 from .pdf_tool import (
     create_pdf_tool,
     edit_pdf_tool,
@@ -25,6 +26,7 @@ AVAILABLE_TOOLS = [
     ("bash_command_tool", "Bash Command Execution"),
     ("web_search_tool", "Web Search"),
     ("arxiv_tool", "ArXiv Paper Search"),
+    ("email_tool", "Send Email"),
 ]
 
 # Map of tool names to actual tool objects
@@ -39,6 +41,7 @@ TOOL_MAP = {
     "bash_command_tool": bash_command_tool,
     "web_search_tool": web_search_tool,
     "arxiv_tool": arxiv_tool,
+    "email_tool": email_tool,
 }
 
 __all__ = [
@@ -52,6 +55,7 @@ __all__ = [
     "bash_command_tool",
     "web_search_tool",
     "arxiv_tool",
+    "email_tool",
     "AVAILABLE_TOOLS",
     "TOOL_MAP",
 ]

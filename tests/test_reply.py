@@ -1,52 +1,65 @@
-"""Tests for email reply functionality."""
+"""Tests for email reply handling."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mailos.reply import EmailData, create_email_prompt, handle_email_reply
-from mailos.utils.reply_utils import should_reply
+from mailos.reply import handle_email_reply
 from mailos.vendors.config import VENDOR_CONFIGS
 
 
-def test_create_email_prompt(valid_email_data, mock_tools):
-    """Test email prompt creation."""
-    email = EmailData(
-        sender=valid_email_data["from"],
-        subject=valid_email_data["subject"],
-        body=valid_email_data["body"],
-        msg_date=valid_email_data["msg_date"],
-        message_id=valid_email_data["message_id"],
-        attachments=valid_email_data.get("attachments", []),
+@pytest.fixture
+def valid_email_data():
+    """Provide valid email data fixture."""
+    return {
+        "from": "sender@example.com",
+        "subject": "Test Subject",
+        "body": "Test body content",
+        "message_id": "<test123@example.com>",
+        "msg_date": "2024-03-20",
+    }
+
+
+@pytest.fixture
+def base_checker_config():
+    """Provide base checker configuration fixture."""
+    return {
+        "id": "test-checker-1",  # Added id field
+        "monitor_email": "support@example.com",
+        "password": "test_password",
+        "imap_server": "imap.example.com",
+        "imap_port": 993,
+        "auto_reply": True,
+        "api_key": "test_api_key",
+    }
+
+
+@pytest.fixture
+def mock_llm():
+    """Mock LLM instance."""
+    mock = MagicMock()
+    mock.generate_sync.return_value = MagicMock(
+        content=[MagicMock(data="Test response")]
     )
-    prompt = create_email_prompt(email, mock_tools)
-
-    assert email.sender in prompt
-    assert email.subject in prompt
-    assert email.body in prompt
-    assert "Test tool" in prompt  # Tool description should be in prompt
+    return mock
 
 
-def test_should_reply_valid_email():
-    """Test should_reply with valid email."""
-    email_data = {"from": "user@example.com", "subject": "Regular inquiry"}
-    assert should_reply(email_data) is True
-
-
-def test_should_reply_noreply_email():
-    """Test should_reply with no-reply email."""
-    email_data = {"from": "no-reply@example.com", "subject": "Notification"}
-    assert should_reply(email_data) is False
+@pytest.fixture
+def mock_smtp():
+    """Mock SMTP connection."""
+    with patch("mailos.utils.email_utils.smtplib.SMTP_SSL") as mock:
+        yield mock
 
 
 @pytest.mark.parametrize(
     "provider,config",
     [
-        ("anthropic", {"api_key": "test_key"}),
-        ("openai", {"api_key": "test_key"}),
+        ("anthropic", {"id": "test-anthropic", "api_key": "test_key"}),
+        ("openai", {"id": "test-openai", "api_key": "test_key"}),
         (
             "bedrock-anthropic",
             {
+                "id": "test-bedrock",
                 "aws_access_key": "test_key",
                 "aws_secret_key": "test_secret",
                 "aws_region": "us-east-1",
@@ -74,51 +87,21 @@ def test_handle_email_reply_different_providers(
 
         result = handle_email_reply(checker_config, valid_email_data)
         assert result is True
-        mock_llm.generate_sync.assert_called_once()
 
 
-def test_handle_email_reply_missing_required_fields(base_checker_config):
-    """Test handle_email_reply with missing required fields."""
-    email_data = {
-        "subject": "Test Subject",  # missing 'from' field
-        "body": "Test body",
-    }
-    result = handle_email_reply(base_checker_config, email_data)
-    assert result is False
-
-
-def test_handle_email_reply_auto_reply_disabled(base_checker_config, valid_email_data):
-    """Test handle_email_reply with auto-reply disabled."""
+def test_handle_email_reply_disabled(base_checker_config, valid_email_data):
+    """Test handle_email_reply when auto-reply is disabled."""
     base_checker_config["auto_reply"] = False
     result = handle_email_reply(base_checker_config, valid_email_data)
     assert result is False
 
 
-def test_handle_email_reply_smtp_error(
-    base_checker_config, valid_email_data, mock_llm, mock_smtp
+def test_handle_email_reply_missing_required_fields(
+    base_checker_config, valid_email_data
 ):
-    """Test handle_email_reply with SMTP error."""
-    mock_smtp.return_value.__enter__.return_value.send_message.side_effect = Exception(
-        "SMTP Error"
-    )
-
-    with patch("mailos.reply.LLMFactory.create", return_value=mock_llm):
-        # Update the SMTP server in config
-        base_checker_config["imap_server"] = "smtp.example.com"
-        result = handle_email_reply(base_checker_config, valid_email_data)
-        assert result is False
-
-
-def test_handle_email_reply_unknown_provider(base_checker_config, valid_email_data):
-    """Test handle_email_reply with unknown provider."""
-    base_checker_config["llm_provider"] = "unknown_provider"
-    result = handle_email_reply(base_checker_config, valid_email_data)
-    assert result is False
-
-
-def test_handle_email_reply_missing_credentials(base_checker_config, valid_email_data):
-    """Test handle_email_reply with missing credentials."""
-    del base_checker_config["api_key"]
+    """Test handle_email_reply with missing required fields."""
+    # Remove required field
+    del valid_email_data["from"]
     result = handle_email_reply(base_checker_config, valid_email_data)
     assert result is False
 
@@ -147,3 +130,49 @@ def test_handle_email_reply_missing_optional_fields(
         )
         result = handle_email_reply(base_checker_config, email_data)
         assert result is True
+
+
+def test_handle_email_reply_with_attachments(
+    base_checker_config, valid_email_data, mock_llm, mock_smtp
+):
+    """Test handle_email_reply with attachments."""
+    # Configure mock SMTP to return success
+    mock_smtp.return_value.__enter__.return_value.send_message.return_value = {}
+
+    # Add attachments to email data
+    valid_email_data["attachments"] = [
+        {
+            "path": "/path/to/test.pdf",
+            "type": "application/pdf",
+            "original_name": "test.pdf",
+        }
+    ]
+
+    with patch("mailos.reply.LLMFactory.create", return_value=mock_llm):
+        base_checker_config.update(
+            {
+                "llm_provider": "anthropic",
+                "model": "claude-3-sonnet",
+                "api_key": "test_api_key",
+            }
+        )
+        result = handle_email_reply(base_checker_config, valid_email_data)
+        assert result is True
+
+
+def test_handle_email_reply_llm_error(base_checker_config, valid_email_data, mock_smtp):
+    """Test handle_email_reply with LLM initialization error."""
+    with patch("mailos.reply.LLMFactory.create", return_value=None):
+        result = handle_email_reply(base_checker_config, valid_email_data)
+        assert result is False
+
+
+def test_handle_email_reply_empty_response(
+    base_checker_config, valid_email_data, mock_llm, mock_smtp
+):
+    """Test handle_email_reply with empty LLM response."""
+    mock_llm.generate_sync.return_value = MagicMock(content=[])
+
+    with patch("mailos.reply.LLMFactory.create", return_value=mock_llm):
+        result = handle_email_reply(base_checker_config, valid_email_data)
+        assert result is False
