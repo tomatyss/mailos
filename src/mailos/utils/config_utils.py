@@ -5,7 +5,7 @@ import logging
 import os
 from typing import Any, Dict
 
-CONFIG_FILE = "email_config.json"
+DEFAULT_CONFIG_FILE = "email_config.json"
 DEFAULT_CONFIG = {
     "checkers": [],
     "attachment_settings": {
@@ -19,6 +19,20 @@ DEFAULT_CONFIG = {
 
 logger = logging.getLogger(__name__)
 
+# Global variable to store the current config file path
+_config_file = DEFAULT_CONFIG_FILE
+
+
+def set_config_file(path: str) -> None:
+    """Set the path for the configuration file.
+
+    Args:
+        path: Path to the configuration file
+    """
+    global _config_file
+    _config_file = path
+    logger.info(f"Set configuration file path to: {path}")
+
 
 def load_config() -> Dict[str, Any]:
     """Load configuration from JSON file.
@@ -26,8 +40,8 @@ def load_config() -> Dict[str, Any]:
     Returns:
         Dictionary containing configuration settings
     """
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
+    if os.path.exists(_config_file):
+        with open(_config_file, "r") as f:
             config = json.load(f)
             # Ensure attachment settings exist
             if "attachment_settings" not in config:
@@ -42,7 +56,7 @@ def save_config(config: Dict[str, Any]) -> None:
     Args:
         config: Configuration dictionary to save
     """
-    with open(CONFIG_FILE, "w") as f:
+    with open(_config_file, "w") as f:
         json.dump(config, f, indent=4)
 
 

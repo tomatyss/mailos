@@ -19,7 +19,7 @@ from mailos.ui.checker_form import create_checker_form
 from mailos.ui.display import display_checkers, refresh_display
 from mailos.ui.settings_form import create_settings_form
 from mailos.utils.auth_utils import require_auth
-from mailos.utils.config_utils import load_config, save_config
+from mailos.utils.config_utils import load_config, save_config, set_config_file
 from mailos.utils.logger_utils import logger, parse_log_level, set_log_level
 from mailos.vendors.config import VENDOR_CONFIGS
 
@@ -214,11 +214,21 @@ def cli():
         default="info",
         help="Set the logging level",
     )
-    def run(log_level: str):
-        """Run the web application with specified log level."""
+    @click.option(
+        "--config",
+        type=click.Path(exists=True, dir_okay=False),
+        help="Path to custom configuration file",
+    )
+    def run(log_level: str, config: Optional[str]):
+        """Run the web application with specified log level and optional config file."""
         # Use our logger_utils functions to set the log level
         level = parse_log_level(log_level)
         set_log_level(level)
+
+        # Set custom config file if provided
+        if config:
+            logger.info(f"Using custom config file: {config}")
+            set_config_file(config)
 
         logger.debug("Starting application with log level: %s", log_level)
         init_scheduler()
