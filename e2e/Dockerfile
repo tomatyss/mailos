@@ -15,16 +15,11 @@ RUN postconf -e 'inet_interfaces = all' \
 WORKDIR /app
 
 # Copy the local package files
-COPY . .
+COPY .. .
 
 # Install the package in development mode
 RUN pip install -e .
 
-# Install test dependencies
-RUN pip install pytest pytest-cov
-
-# Expose SMTP port
-EXPOSE 25
 
 # Start script to run both Postfix and keep container running
 COPY e2e/docker-entrypoint.sh /usr/local/bin/

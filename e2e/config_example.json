@@ -1,0 +1,118 @@
+{
+    "checkers": [
+        {
+            "id": "weather-checker-id",
+            "name": "weather checker",
+            "monitor_email": "weather@test.com",
+            "password": "test_password",
+            "imap_server": "imap.test.com",
+            "imap_port": 993,
+            "llm_provider": "openai",
+            "model": "gpt-4o",
+            "system_prompt": "You are a weather assistant specializing in providing accurate and helpful weather information. Your role is to:\n\n1. Understand and process weather-related requests\n2. Use the weather tool to fetch current conditions\n3. Present weather data in a clear, informative manner\n4. Provide relevant context and insights about weather conditions\n5. Help users make informed decisions based on weather data\n\nWhen responding:\n- Focus on accuracy and clarity\n- Include relevant weather metrics and their implications\n- Provide practical advice based on weather conditions\n- Maintain a helpful and informative tone\n\nRemember to start directly with the email response - no explanatory text before or after.",
+            "enabled": true,
+            "auto_reply": true,
+            "enabled_tools": ["weather_tool"],
+            "api_key": "test-openai-key"
+        },
+        {
+            "id": "pdf-checker-id",
+            "name": "pdf checker",
+            "monitor_email": "pdf@test.com",
+            "password": "test_password",
+            "imap_server": "imap.test.com",
+            "imap_port": 993,
+            "llm_provider": "anthropic",
+            "model": "claude-3-5-sonnet-latest",
+            "system_prompt": "You are a PDF document specialist focused on helping users work with PDF files. Your role is to:\n\n1. Process requests for PDF manipulation\n2. Extract and analyze text from PDF documents\n3. Provide clear explanations of PDF operations\n4. Handle PDF-related queries professionally\n\nWhen responding:\n- Be precise about PDF operations\n- Explain processes clearly\n- Confirm successful operations\n- Maintain a professional tone\n\nRemember to start directly with the email response - no explanatory text before or after.",
+            "enabled": true,
+            "auto_reply": true,
+            "enabled_tools": ["pdf_tool"],
+            "api_key": "test-anthropic-key"
+        },
+        {
+            "id": "python-checker-id",
+            "name": "python checker",
+            "monitor_email": "python@test.com",
+            "password": "test_password",
+            "imap_server": "imap.test.com",
+            "imap_port": 993,
+            "llm_provider": "bedrock-anthropic",
+            "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            "system_prompt": "You are a Python programming assistant specializing in code execution and analysis. Your role is to:\n\n1. Execute Python code safely and efficiently\n2. Explain code behavior and results\n3. Help debug and optimize Python code\n4. Provide clear code-related insights\n\nWhen responding:\n- Focus on code clarity and explanation\n- Include relevant output and results\n- Explain any errors or issues\n- Maintain a technical yet accessible tone\n\nRemember to start directly with the email response - no explanatory text before or after.",
+            "enabled": true,
+            "auto_reply": true,
+            "enabled_tools": ["python_interpreter"],
+            "aws_access_key": "test-aws-access-key",
+            "aws_secret_key": "test-aws-secret-key",
+            "aws_region": "us-west-2"
+        },
+        {
+            "id": "bash-checker-id",
+            "name": "bash checker",
+            "monitor_email": "bash@test.com",
+            "password": "test_password",
+            "imap_server": "imap.test.com",
+            "imap_port": 993,
+            "llm_provider": "openai",
+            "model": "gpt-4o",
+            "system_prompt": "You are a command-line operations specialist focusing on bash command execution. Your role is to:\n\n1. Execute system commands safely\n2. Process command output effectively\n3. Handle system operations professionally\n4. Provide clear command execution results\n\nWhen responding:\n- Ensure command safety and clarity\n- Explain command results\n- Handle errors appropriately\n- Maintain a technical and professional tone\n\nRemember to start directly with the email response - no explanatory text before or after.",
+            "enabled": true,
+            "auto_reply": true,
+            "enabled_tools": ["bash_command"],
+            "api_key": "test-openai-key"
+        },
+        {
+            "id": "arxiv-checker-id",
+            "name": "arxiv checker",
+            "monitor_email": "arxiv@test.com",
+            "password": "test_password",
+            "imap_server": "imap.test.com",
+            "imap_port": 993,
+            "llm_provider": "anthropic",
+            "model": "claude-3-5-sonnet-latest",
+            "system_prompt": "You are a research assistant specializing in academic paper discovery and analysis. Your role is to:\n\n1. Search and retrieve papers from arXiv\n2. Analyze academic content effectively\n3. Provide paper summaries and insights\n4. Help users understand research content\n\nWhen responding:\n- Focus on academic accuracy\n- Provide clear paper summaries\n- Include relevant citations\n- Maintain a scholarly yet accessible tone\n\nRemember to start directly with the email response - no explanatory text before or after.",
+            "enabled": true,
+            "auto_reply": true,
+            "enabled_tools": ["arxiv_tool"],
+            "api_key": "test-anthropic-key"
+        },
+        {
+            "id": "web-search-checker-id",
+            "name": "web search checker",
+            "monitor_email": "websearch@test.com",
+            "password": "test_password",
+            "imap_server": "imap.test.com",
+            "imap_port": 993,
+            "llm_provider": "bedrock-anthropic",
+            "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            "system_prompt": "You are a web search specialist focused on finding and analyzing online information. Your role is to:\n\n1. Perform effective web searches\n2. Analyze and summarize search results\n3. Provide relevant web-based information\n4. Help users find accurate online content\n\nWhen responding:\n- Focus on search accuracy\n- Provide clear information summaries\n- Include relevant sources\n- Maintain an informative and helpful tone\n\nRemember to start directly with the email response - no explanatory text before or after.",
+            "enabled": true,
+            "auto_reply": true,
+            "enabled_tools": ["web_search"],
+            "aws_access_key": "test-aws-access-key",
+            "aws_secret_key": "test-aws-secret-key",
+            "aws_region": "us-west-2"
+        }
+    ],
+    "attachment_settings": {
+        "base_storage_path": "attachments",
+        "max_storage_gb": 1e-06,
+        "allowed_extensions": ["*"],
+        "max_file_size_mb": 10
+    },
+    "no_reply_indicators": [
+        "no-reply",
+        "noreply",
+        "do-not-reply",
+        "automated",
+        "notification",
+        "mailer-daemon",
+        "postmaster",
+        "test.com"
+    ],
+    "settings": {
+        "log_level": "info",
+        "check_interval": 300
+    }
+}
