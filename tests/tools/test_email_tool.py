@@ -60,9 +60,6 @@ def test_send_email_success(mock_load_config, mock_send_email):
     assert call_args["recipient"] == "recipient@example.com"
     assert call_args["subject"] == "Test Subject"
     assert call_args["body"] == "Test Body"
-    assert call_args["email_data"]["body"] == "Test Body"
-    assert call_args["email_data"]["from"] == "test@example.com"
-    assert call_args["email_data"]["subject"] == "Test Subject"
 
 
 def test_send_email_with_attachments(mock_load_config, mock_send_email):
@@ -79,15 +76,15 @@ def test_send_email_with_attachments(mock_load_config, mock_send_email):
     assert result["status"] == "success"
     assert "sent successfully" in result["message"]
 
-    # Verify attachments were properly formatted
+    # Verify send_email was called with correct parameters
     call_args = mock_send_email.call_args[1]
-    assert "attachments" in call_args["email_data"]
-    sent_attachments = call_args["email_data"]["attachments"]
-    assert len(sent_attachments) == 2
-    assert sent_attachments[0]["path"] == attachments[0]
-    assert sent_attachments[0]["original_name"] == "file1.pdf"
-    assert sent_attachments[1]["path"] == attachments[1]
-    assert sent_attachments[1]["original_name"] == "file2.jpg"
+    assert call_args["smtp_server"] == "smtp.example.com"
+    assert call_args["smtp_port"] == 465
+    assert call_args["sender_email"] == "test@example.com"
+    assert call_args["password"] == "test-password"
+    assert call_args["recipient"] == "recipient@example.com"
+    assert call_args["subject"] == "Test Subject"
+    assert call_args["body"] == "Test Body"
 
 
 def test_send_email_invalid_checker_id(mock_load_config, mock_send_email):

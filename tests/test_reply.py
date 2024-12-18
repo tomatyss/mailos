@@ -51,6 +51,22 @@ def mock_smtp():
         yield mock
 
 
+@pytest.fixture
+def mock_create_email_prompt():
+    """Mock create_email_prompt to handle sender/from conversion."""
+    with patch("mailos.reply.create_email_prompt") as mock:
+
+        def side_effect(email_data, *args, **kwargs):
+            # Convert sender to from for prompt creation
+            prompt_data = email_data.copy()
+            if "sender" in prompt_data:
+                prompt_data["from"] = prompt_data.pop("sender")
+            return "Test prompt"
+
+        mock.side_effect = side_effect
+        yield mock
+
+
 @pytest.mark.parametrize(
     "provider,config",
     [
@@ -68,7 +84,7 @@ def mock_smtp():
     ],
 )
 def test_handle_email_reply_different_providers(
-    provider, config, valid_email_data, mock_llm, mock_smtp
+    provider, config, valid_email_data, mock_llm, mock_smtp, mock_create_email_prompt
 ):
     """Test handle_email_reply with different providers."""
     # Configure mock SMTP to return success
@@ -87,6 +103,11 @@ def test_handle_email_reply_different_providers(
 
         result = handle_email_reply(checker_config, valid_email_data)
         assert result is True
+
+        # Verify create_email_prompt was called with correct data
+        call_args = mock_create_email_prompt.call_args[0][0]
+        assert "sender" in call_args
+        assert call_args["sender"] == valid_email_data["from"]
 
 
 def test_handle_email_reply_disabled(base_checker_config, valid_email_data):
@@ -108,7 +129,12 @@ def test_handle_email_reply_missing_required_fields(
 
 @pytest.mark.parametrize("optional_field", ["body", "msg_date", "message_id"])
 def test_handle_email_reply_missing_optional_fields(
-    optional_field, base_checker_config, valid_email_data, mock_llm, mock_smtp
+    optional_field,
+    base_checker_config,
+    valid_email_data,
+    mock_llm,
+    mock_smtp,
+    mock_create_email_prompt,
 ):
     """Test handle_email_reply with missing optional fields."""
     # Configure mock SMTP to return success
@@ -131,9 +157,14 @@ def test_handle_email_reply_missing_optional_fields(
         result = handle_email_reply(base_checker_config, email_data)
         assert result is True
 
+        # Verify create_email_prompt was called with correct data
+        call_args = mock_create_email_prompt.call_args[0][0]
+        assert "sender" in call_args
+        assert call_args["sender"] == valid_email_data["from"]
+
 
 def test_handle_email_reply_with_attachments(
-    base_checker_config, valid_email_data, mock_llm, mock_smtp
+    base_checker_config, valid_email_data, mock_llm, mock_smtp, mock_create_email_prompt
 ):
     """Test handle_email_reply with attachments."""
     # Configure mock SMTP to return success
@@ -159,6 +190,12 @@ def test_handle_email_reply_with_attachments(
         result = handle_email_reply(base_checker_config, valid_email_data)
         assert result is True
 
+        # Verify create_email_prompt was called with correct data
+        call_args = mock_create_email_prompt.call_args[0][0]
+        assert "sender" in call_args
+        assert call_args["sender"] == valid_email_data["from"]
+        assert "attachments" in call_args
+
 
 def test_handle_email_reply_llm_error(base_checker_config, valid_email_data, mock_smtp):
     """Test handle_email_reply with LLM initialization error."""
@@ -168,7 +205,7 @@ def test_handle_email_reply_llm_error(base_checker_config, valid_email_data, moc
 
 
 def test_handle_email_reply_empty_response(
-    base_checker_config, valid_email_data, mock_llm, mock_smtp
+    base_checker_config, valid_email_data, mock_llm, mock_smtp, mock_create_email_prompt
 ):
     """Test handle_email_reply with empty LLM response."""
     mock_llm.generate_sync.return_value = MagicMock(content=[])

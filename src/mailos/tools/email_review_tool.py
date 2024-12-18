@@ -9,30 +9,80 @@ from mailos.utils.logger_utils import logger
 from mailos.vendors.models import Tool
 
 
+def build_search_criteria(
+    since_date: Optional[str] = None,
+    until_date: Optional[str] = None,
+    sender: Optional[str] = None,
+    unread_only: bool = False,
+) -> str:
+    """Build IMAP search criteria based on filters.
+
+    Args:
+        since_date: Start date in ISO format
+        until_date: End date in ISO format
+        sender: Specific sender email to filter by
+        unread_only: Only return unread emails if True
+
+    Returns:
+        IMAP search criteria string
+    """
+    criteria = []
+
+    if since_date:
+        date_str = datetime.fromisoformat(since_date).strftime("%d-%b-%Y")
+        criteria.append(f'SINCE "{date_str}"')
+
+    if until_date:
+        # Add 1 day to until_date to make it inclusive
+        date_str = (datetime.fromisoformat(until_date) + timedelta(days=1)).strftime(
+            "%d-%b-%Y"
+        )
+        criteria.append(f'BEFORE "{date_str}"')
+
+    if sender:
+        criteria.append(f'FROM "{sender}"')
+
+    if unread_only:
+        criteria.append("UNSEEN")
+
+    return f'({" ".join(criteria)})' if criteria else "ALL"
+
+
 def check_emails(
     imap_server: str,
     imap_port: int,
     email_addr: str,
     password: str,
-    expected_senders: List[str],
+    expected_senders: Optional[List[str]] = None,
     since_date: Optional[str] = None,
+    until_date: Optional[str] = None,
+    sender: Optional[str] = None,
+    unread_only: bool = False,
+    mark_as_read: bool = False,
 ) -> Dict:
-    """Check emails against expected senders and generate report.
+    """Check emails with flexible filtering options.
 
     Args:
         imap_server: IMAP server address
         imap_port: IMAP port number
         email_addr: Email address to check
         password: Email account password
-        expected_senders: List of expected email senders
-        since_date: Optional ISO date to check emails since (defaults to last 24h)
+        expected_senders: Optional list of expected email senders for monitoring
+        since_date: Optional ISO date to check emails since
+        until_date: Optional ISO date to check emails until
+        sender: Optional specific sender email to filter by
+        unread_only: Only return unread emails if True
+        mark_as_read: Mark retrieved emails as read if True
 
     Returns:
         Dict containing:
         - received_emails: List of actual received emails
         - missing_senders: List of expected senders who didn't send emails
+        (if expected_senders provided)
         - unexpected_senders: List of senders not in expected list
-        - status: "GOOD" if all expected emails received, "BAD" otherwise
+        (if expected_senders provided)
+        - status: "GOOD" if all expected emails received or no monitoring required,
+        "BAD" otherwise
     """
     try:
         # Connect to IMAP server
@@ -40,14 +90,17 @@ def check_emails(
         mail.login(email_addr, password)
         mail.select("inbox")
 
-        # Set date range
-        if since_date:
-            search_date = datetime.fromisoformat(since_date)
-        else:
-            search_date = datetime.now() - timedelta(days=1)
+        # Set default date range if not provided
+        if not since_date and not until_date:
+            since_date = (datetime.now() - timedelta(days=1)).isoformat()
 
-        date_str = search_date.strftime("%d-%b-%Y")
-        search_criteria = f'(SINCE "{date_str}")'
+        # Build search criteria
+        search_criteria = build_search_criteria(
+            since_date=since_date,
+            until_date=until_date,
+            sender=sender,
+            unread_only=unread_only,
+        )
 
         # Search for emails
         _, message_numbers = mail.search(None, search_criteria)
@@ -59,24 +112,47 @@ def check_emails(
             email_body = msg_data[0][1]
             email_message = email.message_from_bytes(email_body)
 
-            sender = email.utils.parseaddr(email_message["from"])[1]
+            msg_sender = email.utils.parseaddr(email_message["from"])[1]
             subject = email_message["subject"]
             date = email_message["date"]
 
-            received_emails.append({"from": sender, "subject": subject, "date": date})
-            actual_senders.add(sender)
+            received_emails.append(
+                {
+                    "from": msg_sender,
+                    "subject": subject,
+                    "date": date,
+                    "message_id": email_message["message-id"]
+                    or f"generated-{num.decode()}",
+                }
+            )
+            actual_senders.add(msg_sender)
 
-        # Compare against expected senders
-        expected_set = set(expected_senders)
-        missing_senders = list(expected_set - actual_senders)
-        unexpected_senders = list(actual_senders - expected_set)
+            # Mark as read if requested
+            if mark_as_read:
+                mail.store(num, "+FLAGS", "\\Seen")
 
-        # Determine status
-        status = "GOOD" if not missing_senders else "BAD"
+        # Compare against expected senders if provided
+        status = "GOOD"
+        missing_senders = []
+        unexpected_senders = []
+
+        if expected_senders:
+            expected_set = set(expected_senders)
+            missing_senders = list(expected_set - actual_senders)
+            unexpected_senders = list(actual_senders - expected_set)
+            status = "GOOD" if not missing_senders else "BAD"
 
         # Clean up
         mail.close()
         mail.logout()
+
+        # Determine date range for response
+        start_date = (
+            datetime.fromisoformat(since_date)
+            if since_date
+            else datetime.now() - timedelta(days=1)
+        )
+        end_date = datetime.fromisoformat(until_date) if until_date else datetime.now()
 
         return {
             "status": status,
@@ -84,9 +160,10 @@ def check_emails(
             "missing_senders": missing_senders,
             "unexpected_senders": unexpected_senders,
             "check_period": {
-                "from": date_str,
-                "to": datetime.now().strftime("%d-%b-%Y"),
+                "from": start_date.strftime("%d-%b-%Y"),
+                "to": end_date.strftime("%d-%b-%Y"),
             },
+            "total_emails": len(received_emails),
         }
 
     except Exception as e:
@@ -96,15 +173,16 @@ def check_emails(
             "status": "ERROR",
             "error": error_msg,
             "received_emails": [],
-            "missing_senders": expected_senders,
+            "missing_senders": expected_senders or [],
             "unexpected_senders": [],
+            "total_emails": 0,
         }
 
 
 # Define the email review tool
 email_review_tool = Tool(
     name="email_review",
-    description="Review incoming emails and compare against expected senders",
+    description="Review and filter emails with flexible search options",
     parameters={
         "type": "object",
         "properties": {
@@ -115,11 +193,29 @@ email_review_tool = Tool(
             "expected_senders": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "List of expected email senders",
+                "description": "Optional list of expected email senders for monitoring",
             },
             "since_date": {
                 "type": "string",
-                "description": "Optional ISO date to check emails since",
+                "description": "Optional ISO date to check emails since (e.g. 2024-01-01)",  # noqa E501
+            },
+            "until_date": {
+                "type": "string",
+                "description": "Optional ISO date to check emails until (e.g. 2024-01-31)",  # noqa E501
+            },
+            "sender": {
+                "type": "string",
+                "description": "Optional specific sender email to filter by",
+            },
+            "unread_only": {
+                "type": "boolean",
+                "description": "Only return unread emails if True",
+                "default": False,
+            },
+            "mark_as_read": {
+                "type": "boolean",
+                "description": "Mark retrieved emails as read if True",
+                "default": False,
             },
         },
         "required": [
@@ -127,7 +223,6 @@ email_review_tool = Tool(
             "imap_port",
             "email_addr",
             "password",
-            "expected_senders",
         ],
     },
     required_params=[
@@ -135,7 +230,6 @@ email_review_tool = Tool(
         "imap_port",
         "email_addr",
         "password",
-        "expected_senders",
     ],
     function=check_emails,
 )
