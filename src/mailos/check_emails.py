@@ -159,17 +159,20 @@ def check_tasks(checker_config):
     if not tasks:
         return
 
-    logger.info(f"Checking tasks for checker {checker_config.get('name')}")
+    logger.info(f"Checking tasks for checker {checker_config.get('name', 'unknown')}")
     for task in tasks:
         try:
+            # Support both old (name) and new (title) task formats
+            task_name = task.get("title", task.get("name", "Untitled Task"))
+
             if TaskManager.should_run_task(task):
-                logger.info(f"Executing task: {task['name']}")
+                logger.info(f"Executing task: {task_name}")
                 if TaskManager.execute_task(checker_config, task):
-                    logger.info(f"Successfully executed task: {task['name']}")
+                    logger.info(f"Successfully executed task: {task_name}")
                 else:
-                    logger.error(f"Failed to execute task: {task['name']}")
+                    logger.error(f"Failed to execute task: {task_name}")
         except Exception as e:
-            logger.error(f"Error checking task {task.get('name', 'unknown')}: {e}")
+            logger.error(f"Error checking task: {str(e)}")
 
 
 def main():

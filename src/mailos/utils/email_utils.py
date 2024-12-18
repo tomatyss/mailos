@@ -143,7 +143,38 @@ def attach_files_from_current_thread(
 def send_email(
     smtp_server, smtp_port, sender_email, password, recipient, subject, body, email_data
 ):
-    """Send an email using SMTP."""
+    """Send an email using SMTP with support for attachments and thread context.
+
+    This function sends an email reply that includes the original message context
+    and any attachments from the current thread. It handles MIME message creation,
+    attachment processing, and secure SMTP communication.
+
+    Args:
+        smtp_server: SMTP server hostname
+        smtp_port: SMTP server port number
+        sender_email: Email address of the sender
+        password: SMTP authentication password
+        recipient: Email address of the recipient
+        subject: Email subject (will be prefixed with 'Re:')
+        body: Main content of the email message
+        email_data: Dictionary containing thread context including:
+            - subject: Original email subject
+            - body: Original email body
+            - msg_date: Original email date
+            - from: Original sender
+            - message_id: Original message ID
+            - attachments: List of attachment metadata
+
+    Returns:
+        bool: True if email was sent successfully, False otherwise
+
+    The function performs the following:
+        1. Creates a multipart MIME message
+        2. Adds the new message body with quoted original message
+        3. Attaches files from the current thread
+        4. Establishes secure SMTP connection
+        5. Sends the email
+    """
     try:
         # Add logging to debug email_data contents
         logger.debug(f"Email data received: {email_data}")

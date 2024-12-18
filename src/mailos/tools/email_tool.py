@@ -48,20 +48,6 @@ def send_email(
         smtp_server = checker["imap_server"].replace("imap", "smtp")
         smtp_port = 465  # Standard SSL port
 
-        # Create email_data structure
-        email_data = {
-            "body": body,  # Include the body in email_data
-            "from": checker["monitor_email"],  # Include sender email
-            "subject": subject,  # Include subject
-        }
-
-        # Add attachments if provided
-        if attachments:
-            email_data["attachments"] = [
-                {"path": path, "original_name": path.split("/")[-1]}
-                for path in attachments
-            ]
-
         # Send email using the utility function
         success = send_email_util(
             smtp_server=smtp_server,
@@ -71,8 +57,10 @@ def send_email(
             recipient=to,
             subject=subject,
             body=body,
-            email_data=email_data,  # Now includes body and other required fields
+            email_data={},
         )
+
+        # TODO: Add attachments support
 
         if success:
             return {

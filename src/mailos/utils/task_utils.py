@@ -1,6 +1,5 @@
 """Task management utilities for automated task execution."""
 
-import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -9,9 +8,10 @@ from croniter import croniter
 from mailos.tools import TOOL_MAP
 from mailos.utils.config_utils import load_config, save_config
 from mailos.utils.logger_utils import logger
+from mailos.utils.prompt_utils import create_system_prompt, create_task_prompt
 from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
-from mailos.vendors.models import Content, ContentType, Message, RoleType
+from mailos.vendors.models import Content, ContentType, Message, RoleType, Tool
 
 
 def _initialize_llm(checker_config: Dict[str, Any]):
@@ -47,60 +47,6 @@ def _initialize_llm(checker_config: Dict[str, Any]):
             llm_args[field_name] = field.default
 
     return LLMFactory.create(**llm_args)
-
-
-def _parse_llm_response(response_text: str) -> Dict[str, Any]:
-    """Parse LLM response to extract action and parameters.
-
-    Args:
-        response_text: Raw response from LLM
-
-    Returns:
-        Dictionary containing action type and parameters
-    """
-    try:
-        data = json.loads(response_text)
-        if isinstance(data, dict) and "action" in data:
-            return data
-    except json.JSONDecodeError:
-        pass
-
-    logger.error("Could not parse LLM response into action and parameters")
-    return {}
-
-
-def create_task_prompt(
-    task: Dict[str, Any], variables: Dict[str, Any], enabled_tools: List[Any]
-) -> str:
-    """Create a prompt for the LLM based on the task data.
-
-    Args:
-        task: Task configuration dictionary
-        variables: Variables to use in templates
-        enabled_tools: List of enabled tools for this checker
-
-    Returns:
-        Formatted prompt string for the LLM
-    """
-    tools_description = ""
-    if enabled_tools:
-        tools_description = "You have access to the following tools:\n" + "\n".join(
-            f"- {tool.name}: {tool.description}" for tool in enabled_tools
-        )
-
-    return f"""
-Context: You are processing a scheduled task. Here are the details:
-
-Title: {task['title']}
-Description: {task['description']}
-
-Available variables:
-{json.dumps(variables, indent=2)}
-
-{tools_description}
-
-Your task is to determine the appropriate action to take based on the task description.
-"""
 
 
 class TaskManager:
@@ -257,7 +203,13 @@ class TaskManager:
 
             # Setup enabled tools
             enabled_tools = [
-                TOOL_MAP[tool_name]
+                Tool(
+                    name=tool_name,
+                    description=TOOL_MAP[tool_name].description,
+                    parameters=TOOL_MAP[tool_name].parameters,
+                    function=TOOL_MAP[tool_name].function,
+                    required_params=TOOL_MAP[tool_name].required_params,
+                )
                 for tool_name in checker_config.get("enabled_tools", [])
                 if tool_name in TOOL_MAP
             ]
@@ -268,10 +220,7 @@ class TaskManager:
                 content=[
                     Content(
                         type=ContentType.TEXT,
-                        data=checker_config.get(
-                            "system_prompt",
-                            "You are a helpful task automation assistant.",
-                        ),
+                        data=create_system_prompt(checker_config),
                     )
                 ],
             )
@@ -290,7 +239,7 @@ class TaskManager:
                 ],
             )
 
-            # Generate action plan
+            # Let the LLM vendor handle tool execution
             response = llm.generate_sync(
                 messages=[system_message, user_message],
                 stream=False,
@@ -301,37 +250,12 @@ class TaskManager:
                 logger.error("Empty response from LLM")
                 return False
 
-            # Parse LLM response to get action and parameters
-            action_data = _parse_llm_response(response.content[0].data)
-            if not action_data or "action" not in action_data:
-                logger.error("Failed to parse LLM response")
-                return False
-
-            # Execute the appropriate tool
-            action = action_data["action"]
-            params = action_data.get("parameters", {})
-
-            # Find the tool in enabled tools
-            tool = next((t for t in enabled_tools if t.name == action), None)
-            if not tool:
-                logger.error(f"Tool {action} not found in enabled tools")
-                return False
-
-            try:
-                # Execute the tool with the provided parameters
-                result = tool.execute(**params)
-                success = True if result is not None else False
-            except Exception as e:
-                logger.error(f"Error executing tool {action}: {str(e)}")
-                success = False
-
             # Update last run timestamp
-            if success:
-                task["last_run"] = datetime.now().isoformat()
-                TaskManager.update_task(checker_config["id"], task["id"], task)
-                logger.info(f"Successfully executed task {task['id']}")
+            task["last_run"] = datetime.now().isoformat()
+            TaskManager.update_task(checker_config["id"], task["id"], task)
+            logger.info(f"Successfully executed task {task['id']}")
 
-            return success
+            return True
 
         except Exception as e:
             logger.error(f"Error executing task: {e}")

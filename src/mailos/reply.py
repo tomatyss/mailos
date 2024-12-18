@@ -1,10 +1,4 @@
-"""Email reply handling and processing module.
-
-This module contains functions for handling email replies, including:
-- Creating prompts for LLM responses
-- Processing email attachments
-- Sending automated replies using configured LLM providers
-"""
+"""Email reply handling and processing module."""
 
 from dataclasses import dataclass
 from typing import Any, Dict, List
@@ -13,9 +7,10 @@ from mailos.tools import TOOL_MAP
 from mailos.utils.config_utils import get_attachment_settings
 from mailos.utils.email_utils import send_email
 from mailos.utils.logger_utils import logger
+from mailos.utils.prompt_utils import create_email_prompt, create_system_prompt
 from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
-from mailos.vendors.models import Content, ContentType, Message, RoleType
+from mailos.vendors.models import Content, ContentType, Message, RoleType, Tool
 
 # Constants
 SUPPORTED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
@@ -44,49 +39,6 @@ class EmailData:
             message_id=data.get("message_id", ""),
             attachments=data.get("attachments", []),
         )
-
-
-def create_email_prompt(
-    email_data: EmailData, available_tools: List[Any], has_images: bool = False
-) -> str:
-    """Create a prompt for the LLM based on the email data.
-
-    Args:
-        email_data: Structured email data
-        available_tools: List of available tools for the LLM
-        has_images: Whether the email contains image attachments
-
-    Returns:
-        Formatted prompt string for the LLM
-    """
-    tools_description = ""
-    if available_tools:
-        tools_description = (
-            "You have access to the following tools:\n"
-            + "\n".join(
-                f"- {tool.name}: {tool.description}" for tool in available_tools
-            )
-            + f"\n\nIMPORTANT: When using tools that create files (like create_pdf), "
-            f"you MUST use the sender's email address ({email_data.sender}) as the "
-            f"sender_email parameter. This ensures files are saved in the correct "
-            f"directory and will be properly attached to your response email."
-        )
-
-    attachment_context = _build_attachment_context(email_data.attachments or [])
-
-    return f"""
-Context: You are responding to an email. Here are the details:{attachment_context}
-
-From: {email_data.sender}
-Subject: {email_data.subject}
-Message: {email_data.body}
-
-{tools_description}
-
-Please compose a professional and helpful response. Keep your response concise and
-relevant. Your response will be followed by the original message, so you don't need
-to quote it.
-"""
 
 
 def _build_attachment_context(attachments: List[Dict[str, Any]]) -> str:
@@ -262,7 +214,13 @@ def handle_email_reply(
 
         # Setup enabled tools
         enabled_tools = [
-            TOOL_MAP[tool_name]
+            Tool(
+                name=tool_name,
+                description=TOOL_MAP[tool_name].description,
+                parameters=TOOL_MAP[tool_name].parameters,
+                function=TOOL_MAP[tool_name].function,
+                required_params=TOOL_MAP[tool_name].required_params,
+            )
             for tool_name in checker_config.get("enabled_tools", [])
             if tool_name in TOOL_MAP
         ]
@@ -272,7 +230,7 @@ def handle_email_reply(
             Content(
                 type=ContentType.TEXT,
                 data=create_email_prompt(
-                    structured_email, enabled_tools, bool(image_contents)
+                    structured_email.__dict__, enabled_tools, bool(image_contents)
                 ),
             )
         ]
@@ -283,20 +241,16 @@ def handle_email_reply(
             )
             message_content.extend(image_contents)
 
-        # Create system prompt with checker context
-        system_prompt = (
-            f"You are a helpful email assistant managing the inbox for "
-            f"{checker_config['monitor_email']}. "
-            f"When using the email tool, always use checker_id='{checker_config['id']}' "  # noqa E501
-            f"to ensure emails are sent using the correct configuration. "
-            f"\n\n{checker_config.get('system_prompt', '')}"
-        )
-
         # Generate response
         messages = [
             Message(
                 role=RoleType.SYSTEM,
-                content=[Content(type=ContentType.TEXT, data=system_prompt)],
+                content=[
+                    Content(
+                        type=ContentType.TEXT,
+                        data=create_system_prompt(checker_config),
+                    )
+                ],
             ),
             Message(role=RoleType.USER, content=message_content),
         ]

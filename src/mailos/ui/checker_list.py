@@ -83,7 +83,12 @@ def display_checker(checker, action_callback, status_filter=None):
     tasks = checker.get("tasks", [])
     tasks_text = ""
     if tasks and checker.get("enable_tasks"):
-        task_list = [f"  • {task['name']} ({task['schedule']})" for task in tasks]
+        task_list = []
+        for task in tasks:
+            # Support both old (name) and new (title) task formats
+            task_name = task.get("title", task.get("name", "Untitled Task"))
+            schedule = task.get("schedule", "No schedule")
+            task_list.append(f"  • {task_name} ({schedule})")
         tasks_text = "\n- Scheduled Tasks:\n" + "\n".join(task_list)
     elif checker.get("enable_tasks"):
         tasks_text = "\n- No tasks configured"
