@@ -5,6 +5,7 @@ import imaplib
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
+from mailos.utils.config_utils import load_config
 from mailos.utils.logger_utils import logger
 from mailos.vendors.models import Tool
 
@@ -49,10 +50,7 @@ def build_search_criteria(
 
 
 def check_emails(
-    imap_server: str,
-    imap_port: int,
-    email_addr: str,
-    password: str,
+    checker_id: str,
     expected_senders: Optional[List[str]] = None,
     since_date: Optional[str] = None,
     until_date: Optional[str] = None,
@@ -63,10 +61,7 @@ def check_emails(
     """Check emails with flexible filtering options.
 
     Args:
-        imap_server: IMAP server address
-        imap_port: IMAP port number
-        email_addr: Email address to check
-        password: Email account password
+        checker_id: ID of the checker to use credentials from
         expected_senders: Optional list of expected email senders for monitoring
         since_date: Optional ISO date to check emails since
         until_date: Optional ISO date to check emails until
@@ -85,9 +80,31 @@ def check_emails(
         "BAD" otherwise
     """
     try:
-        # Connect to IMAP server
-        mail = imaplib.IMAP4_SSL(imap_server, imap_port)
-        mail.login(email_addr, password)
+        # Get checker config
+        config = load_config()
+        checker_config = None
+        for checker in config["checkers"]:
+            if checker.get("id") == checker_id:
+                checker_config = checker
+                break
+
+        if not checker_config:
+            error_msg = f"Checker not found with ID: {checker_id}"
+            logger.error(error_msg)
+            return {
+                "status": "ERROR",
+                "error": error_msg,
+                "received_emails": [],
+                "missing_senders": expected_senders or [],
+                "unexpected_senders": [],
+                "total_emails": 0,
+            }
+
+        # Connect to IMAP server using checker credentials
+        mail = imaplib.IMAP4_SSL(
+            checker_config["imap_server"], checker_config["imap_port"]
+        )
+        mail.login(checker_config["monitor_email"], checker_config["password"])
         mail.select("inbox")
 
         # Set default date range if not provided
@@ -182,14 +199,14 @@ def check_emails(
 # Define the email review tool
 email_review_tool = Tool(
     name="email_review",
-    description="Review and filter emails with flexible search options",
+    description="Review and filter emails with flexible search options using checker credentials",  # noqa E501
     parameters={
         "type": "object",
         "properties": {
-            "imap_server": {"type": "string", "description": "IMAP server address"},
-            "imap_port": {"type": "integer", "description": "IMAP port number"},
-            "email_addr": {"type": "string", "description": "Email address to check"},
-            "password": {"type": "string", "description": "Email account password"},
+            "checker_id": {
+                "type": "string",
+                "description": "ID of the checker to use credentials from",
+            },
             "expected_senders": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -219,17 +236,11 @@ email_review_tool = Tool(
             },
         },
         "required": [
-            "imap_server",
-            "imap_port",
-            "email_addr",
-            "password",
+            "checker_id",
         ],
     },
     required_params=[
-        "imap_server",
-        "imap_port",
-        "email_addr",
-        "password",
+        "checker_id",
     ],
     function=check_emails,
 )
