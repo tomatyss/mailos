@@ -283,18 +283,20 @@ def handle_email_reply(
             )
             message_content.extend(image_contents)
 
+        # Create system prompt with checker context
+        system_prompt = (
+            f"You are a helpful email assistant managing the inbox for "
+            f"{checker_config['monitor_email']}. "
+            f"When using the email tool, always use checker_id='{checker_config['id']}' "  # noqa E501
+            f"to ensure emails are sent using the correct configuration. "
+            f"\n\n{checker_config.get('system_prompt', '')}"
+        )
+
         # Generate response
         messages = [
             Message(
                 role=RoleType.SYSTEM,
-                content=[
-                    Content(
-                        type=ContentType.TEXT,
-                        data=checker_config.get(
-                            "system_prompt", "You are a helpful email assistant."
-                        ),
-                    )
-                ],
+                content=[Content(type=ContentType.TEXT, data=system_prompt)],
             ),
             Message(role=RoleType.USER, content=message_content),
         ]
