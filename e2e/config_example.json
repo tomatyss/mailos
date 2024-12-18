@@ -93,6 +93,95 @@
             "aws_access_key": "test-aws-access-key",
             "aws_secret_key": "test-aws-secret-key",
             "aws_region": "us-west-2"
+        },
+        {
+            "id": "task-checker-id",
+            "name": "task checker",
+            "monitor_email": "task@test.com",
+            "password": "test_password",
+            "imap_server": "imap.test.com",
+            "imap_port": 993,
+            "llm_provider": "openai",
+            "model": "gpt-4o",
+            "system_prompt": "You are a testing specialist focused on verifying email-based tool functionality. Your role is to:\n\n1. Send test emails to various checkers\n2. Verify tool responses and functionality\n3. Report test results clearly\n4. Maintain consistent testing schedule\n\nWhen responding:\n- Focus on test accuracy and completeness\n- Provide clear test results\n- Document any issues found\n- Maintain a professional testing approach\n\nRemember to start directly with the email response - no explanatory text before or after.",
+            "enabled": true,
+            "auto_reply": true,
+            "enabled_tools": [],
+            "api_key": "test-openai-key",
+            "tasks": [
+                {
+                    "id": "weather_test",
+                    "name": "Weather Tool Test",
+                    "schedule": "0 9 * * *",
+                    "enabled": true,
+                    "recipients": ["weather@test.com"],
+                    "subject_template": "Test Request: Weather Information for San Francisco",
+                    "body_template": "Hello Weather Checker,\n\nPlease provide the current weather information for San Francisco, California. Include:\n- Temperature\n- Conditions\n- Humidity\n- Wind speed\n\nThis is an automated test of the weather_tool functionality.\n\nTest ID: {{timestamp}}\nTool being tested: weather_tool\n\nBest regards,\nTask Checker",
+                    "variables": {},
+                    "created_at": "2024-01-01T00:00:00",
+                    "last_run": null
+                },
+                {
+                    "id": "pdf_test",
+                    "name": "PDF Tool Test",
+                    "schedule": "0 9 * * *",
+                    "enabled": true,
+                    "recipients": ["pdf@test.com"],
+                    "subject_template": "Test Request: PDF Analysis",
+                    "body_template": "Hello PDF Checker,\n\nPlease analyze the attached test PDF document and provide:\n- Document summary\n- Page count\n- Text extraction sample\n\nThis is an automated test of the pdf_tool functionality.\n\nTest ID: {{timestamp}}\nTool being tested: pdf_tool\n\nBest regards,\nTask Checker",
+                    "variables": {},
+                    "created_at": "2024-01-01T00:00:00",
+                    "last_run": null
+                },
+                {
+                    "id": "python_test",
+                    "name": "Python Interpreter Test",
+                    "schedule": "0 9 * * *",
+                    "enabled": true,
+                    "recipients": ["python@test.com"],
+                    "subject_template": "Test Request: Python Code Execution",
+                    "body_template": "Hello Python Checker,\n\nPlease execute and analyze the following Python code:\n\n```python\ndef fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)\n\nprint(fibonacci(10))\n```\n\nPlease provide:\n- Code execution result\n- Time complexity analysis\n- Any optimization suggestions\n\nThis is an automated test of the python_interpreter functionality.\n\nTest ID: {{timestamp}}\nTool being tested: python_interpreter\n\nBest regards,\nTask Checker",
+                    "variables": {},
+                    "created_at": "2024-01-01T00:00:00",
+                    "last_run": null
+                },
+                {
+                    "id": "bash_test",
+                    "name": "Bash Command Test",
+                    "schedule": "0 9 * * *",
+                    "enabled": true,
+                    "recipients": ["bash@test.com"],
+                    "subject_template": "Test Request: Bash Command Execution",
+                    "body_template": "Hello Bash Checker,\n\nPlease execute and analyze the following bash commands:\n\n```bash\necho 'Hello, World!'\ndate\npwd\n```\n\nPlease provide:\n- Command execution results\n- Any error messages\n- Command explanation\n\nThis is an automated test of the bash_command functionality.\n\nTest ID: {{timestamp}}\nTool being tested: bash_command\n\nBest regards,\nTask Checker",
+                    "variables": {},
+                    "created_at": "2024-01-01T00:00:00",
+                    "last_run": null
+                },
+                {
+                    "id": "arxiv_test",
+                    "name": "arXiv Tool Test",
+                    "schedule": "0 9 * * *",
+                    "enabled": true,
+                    "recipients": ["arxiv@test.com"],
+                    "subject_template": "Test Request: arXiv Paper Search",
+                    "body_template": "Hello arXiv Checker,\n\nPlease search for and analyze recent papers about:\n'machine learning AND transformers'\n\nPlease provide:\n- Top 3 most relevant papers\n- Brief summaries\n- Author information\n\nThis is an automated test of the arxiv_tool functionality.\n\nTest ID: {{timestamp}}\nTool being tested: arxiv_tool\n\nBest regards,\nTask Checker",
+                    "variables": {},
+                    "created_at": "2024-01-01T00:00:00",
+                    "last_run": null
+                },
+                {
+                    "id": "web_search_test",
+                    "name": "Web Search Tool Test",
+                    "schedule": "0 9 * * *",
+                    "enabled": true,
+                    "recipients": ["websearch@test.com"],
+                    "subject_template": "Test Request: Web Search Query",
+                    "body_template": "Hello Web Search Checker,\n\nPlease perform a web search for:\n'latest developments in quantum computing'\n\nPlease provide:\n- Top search results\n- Key information summary\n- Relevant sources\n\nThis is an automated test of the web_search functionality.\n\nTest ID: {{timestamp}}\nTool being tested: web_search\n\nBest regards,\nTask Checker",
+                    "variables": {},
+                    "created_at": "2024-01-01T00:00:00",
+                    "last_run": null
+                }
+            ]
         }
     ],
     "attachment_settings": {
