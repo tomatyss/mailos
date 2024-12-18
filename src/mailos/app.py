@@ -201,6 +201,29 @@ def check_email_app():
     )
 
 
+def run_headless(config_path: Optional[str] = None, log_level: str = "info") -> None:
+    """Run email checking without the web interface.
+
+    Args:
+        config_path: Optional path to custom configuration file
+        log_level: Logging level to use
+    """
+    # Set up logging
+    level = parse_log_level(log_level)
+    set_log_level(level)
+
+    # Set custom config file if provided
+    if config_path:
+        logger.info(f"Using custom config file: {config_path}")
+        set_config_file(config_path)
+
+    # Initialize scheduler and run
+    logger.info("Starting headless mode")
+    scheduler = init_scheduler()
+    check_emails_main()
+    scheduler.start()
+
+
 def cli():
     """CLI entry point for the application."""
     import click
@@ -219,20 +242,34 @@ def cli():
         type=click.Path(exists=True, dir_okay=False),
         help="Path to custom configuration file",
     )
-    def run(log_level: str, config: Optional[str]):
-        """Run the web application with specified log level and optional config file."""
-        # Use our logger_utils functions to set the log level
-        level = parse_log_level(log_level)
-        set_log_level(level)
+    @click.option(
+        "--headless",
+        is_flag=True,
+        help="Run in headless mode (without web interface)",
+    )
+    def run(log_level: str, config: Optional[str], headless: bool):
+        """Run the application with specified options.
 
-        # Set custom config file if provided
-        if config:
-            logger.info(f"Using custom config file: {config}")
-            set_config_file(config)
+        Args:
+            log_level: Logging level to use
+            config: Optional path to custom configuration file
+            headless: Whether to run in headless mode
+        """
+        if headless:
+            run_headless(config, log_level)
+        else:
+            # Use our logger_utils functions to set the log level
+            level = parse_log_level(log_level)
+            set_log_level(level)
 
-        logger.debug("Starting application with log level: %s", log_level)
-        init_scheduler()
-        start_server(check_email_app, port=8080, debug=True)
+            # Set custom config file if provided
+            if config:
+                logger.info(f"Using custom config file: {config}")
+                set_config_file(config)
+
+            logger.debug("Starting application with log level: %s", log_level)
+            init_scheduler()
+            start_server(check_email_app, port=8080, debug=True)
 
     run()
 
