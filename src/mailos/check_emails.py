@@ -1,4 +1,4 @@
-"""Email checking functions."""
+"""Email checking and task execution functions."""
 
 import email
 import imaplib
@@ -14,6 +14,7 @@ from mailos.utils.config_utils import load_config, update_checker_field
 from mailos.utils.email_utils import get_email_body
 from mailos.utils.logger_utils import logger
 from mailos.utils.reply_utils import should_reply
+from mailos.utils.task_utils import TaskManager
 
 
 def check_emails(checker_config):
@@ -145,9 +146,35 @@ def check_emails(checker_config):
         logger.error(f"Error processing email: {str(e)}", exc_info=True)
 
 
+def check_tasks(checker_config):
+    """Check and execute scheduled tasks for a checker.
+
+    Args:
+        checker_config: Configuration dictionary for the checker
+    """
+    if not checker_config.get("enable_tasks", False):
+        return
+
+    tasks = checker_config.get("tasks", [])
+    if not tasks:
+        return
+
+    logger.info(f"Checking tasks for checker {checker_config.get('name')}")
+    for task in tasks:
+        try:
+            if TaskManager.should_run_task(task):
+                logger.info(f"Executing task: {task['name']}")
+                if TaskManager.execute_task(checker_config, task):
+                    logger.info(f"Successfully executed task: {task['name']}")
+                else:
+                    logger.error(f"Failed to execute task: {task['name']}")
+        except Exception as e:
+            logger.error(f"Error checking task {task.get('name', 'unknown')}: {e}")
+
+
 def main():
-    """Check emails for all enabled checkers."""
-    logger.info("Starting email check...")
+    """Check emails and execute tasks for all enabled checkers."""
+    logger.info("Starting email check and task execution...")
     config = load_config()
     if not config:
         logger.info("No configuration found")
@@ -159,10 +186,12 @@ def main():
             # TODO: Add asyncio support for parallel email checking
             # TODO: add validation for chekers for the same email
             check_emails(checker)
+            # Check tasks if task execution is enabled
+            check_tasks(checker)
 
 
 def init_scheduler():
-    """Initialize the scheduler for email checking."""
+    """Initialize the scheduler for email checking and task execution."""
     scheduler = BackgroundScheduler()
     scheduler.add_job(main, "interval", minutes=1)
     scheduler.start()
