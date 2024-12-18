@@ -18,6 +18,7 @@ from pywebio.pin import (
 )
 
 from mailos.tools import AVAILABLE_TOOLS
+from mailos.ui.task_form import create_task_form, display_task_list
 from mailos.utils.config_utils import load_config, save_config
 from mailos.utils.logger_utils import logger
 from mailos.utils.task_utils import TaskManager
@@ -45,10 +46,10 @@ def handle_task_action(action: str, checker_id: str, task_id: str = None):
             config = load_config()
             for c in config["checkers"]:
                 if c.get("id") == checker_id:
-                    display_task_list(c)
+                    display_task_list(checker_id, c["name"])
                     break
 
-        create_task_popup(checker_id, on_save=on_task_save)
+        create_task_form(checker_id, checker["name"], on_save=on_task_save)
     elif action == "edit":
 
         def on_task_save():
@@ -56,10 +57,10 @@ def handle_task_action(action: str, checker_id: str, task_id: str = None):
             config = load_config()
             for c in config["checkers"]:
                 if c.get("id") == checker_id:
-                    display_task_list(c)
+                    display_task_list(checker_id, c["name"])
                     break
 
-        create_task_popup(checker_id, task_id, on_save=on_task_save)
+        create_task_form(checker_id, checker["name"], task_id, on_save=on_task_save)
     elif action == "delete":
         if TaskManager.delete_task(checker_id, task_id):
             toast("Task deleted successfully")
@@ -67,155 +68,10 @@ def handle_task_action(action: str, checker_id: str, task_id: str = None):
             config = load_config()
             for c in config["checkers"]:
                 if c.get("id") == checker_id:
-                    display_task_list(c)
+                    display_task_list(checker_id, c["name"])
                     break
         else:
             toast("Failed to delete task", color="error")
-
-
-def create_task_popup(checker_id: str, task_id: str = None, on_save=None):
-    """Create popup for adding/editing a task."""
-    task = None
-    if task_id:
-        task = TaskManager.get_task(checker_id, task_id)
-        if not task:
-            logger.warning(f"No task found with ID: {task_id}")
-            return
-
-    def submit_task():
-        if (
-            not pin.task_name
-            or not pin.recipients
-            or not pin.subject_template
-            or not pin.body_template
-            or not pin.schedule
-        ):
-            toast("All fields are required", color="error")
-            return
-
-        task_config = {
-            "name": pin.task_name,
-            "recipients": [r.strip() for r in pin.recipients.split(",")],
-            "subject_template": pin.subject_template,
-            "body_template": pin.body_template,
-            "schedule": pin.schedule,
-            "enabled": True,
-        }
-
-        success = False
-        if task_id:
-            success = TaskManager.update_task(checker_id, task_id, task_config)
-        else:
-            success = TaskManager.add_task(checker_id, task_config)
-
-        if success:
-            toast(f"Task {'updated' if task_id else 'added'} successfully")
-            if on_save:
-                on_save()
-            close_popup()
-        else:
-            toast("Failed to save task", color="error")
-
-    with popup(f"{'Edit' if task_id else 'New'} Task", size="large"):
-        put_input(
-            "task_name",
-            type="text",
-            label="Task Name",
-            value=task["name"] if task else "",
-            help_text="A descriptive name for this task",
-        )
-
-        put_input(
-            "recipients",
-            type="text",
-            label="Recipients (comma-separated)",
-            value=",".join(task["recipients"]) if task else "",
-            help_text="List of email addresses to send to",
-        )
-
-        put_input(
-            "subject_template",
-            type="text",
-            label="Subject Template",
-            value=task["subject_template"] if task else "",
-            help_text="Template for email subject. Use {variable} for placeholders.",
-        )
-
-        put_textarea(
-            "body_template",
-            label="Body Template",
-            value=task["body_template"] if task else "",
-            rows=5,
-            help_text="Template for email body. Use {variable} for placeholders.",
-        )
-
-        put_input(
-            "schedule",
-            type="text",
-            label="Schedule (Cron Expression)",
-            value=(
-                task["schedule"] if task else "*/5 * * * *"
-            ),  # Default to every 5 minutes
-            help_text=(
-                "Cron expression format: minute hour day month weekday\n"
-                "Common examples:\n"
-                "*/5 * * * * (every 5 minutes)\n"
-                "0 9 * * * (daily at 9 AM)\n"
-                "0 */2 * * * (every 2 hours)\n"
-                "0 9 * * 1-5 (weekdays at 9 AM)"
-            ),
-        )
-
-        put_buttons(
-            [
-                {"label": "Save", "value": "save", "color": "success"},
-                {"label": "Cancel", "value": "cancel", "color": "secondary"},
-            ],
-            onclick=lambda val: submit_task() if val == "save" else close_popup(),
-        )
-
-
-def display_task_list(checker):
-    """Display list of tasks for a checker."""
-    tasks = checker.get("tasks", [])
-
-    with use_scope("task_section", clear=True):
-        put_markdown("### Tasks")
-
-        if tasks:
-            for task in tasks:
-                with use_scope(f"task_{task['id']}"):
-                    put_markdown(f"#### {task['name']}")
-                    put_markdown(
-                        f"- Recipients: {', '.join(task['recipients'])}\n"
-                        f"- Schedule: {task['schedule']}\n"
-                        f"- Last Run: {task.get('last_run', 'Never')}"
-                    )
-                    put_buttons(
-                        [
-                            {
-                                "label": "Edit",
-                                "value": ("edit", task["id"]),
-                                "color": "primary",
-                            },
-                            {
-                                "label": "Delete",
-                                "value": ("delete", task["id"]),
-                                "color": "danger",
-                            },
-                        ],
-                        onclick=lambda action_data: handle_task_action(
-                            action_data[0], checker["id"], action_data[1]
-                        ),
-                    )
-                    put_markdown("---")
-
-        put_buttons(
-            [{"label": "Add Task", "value": ("add", None), "color": "success"}],
-            onclick=lambda action_data: handle_task_action(
-                action_data[0], checker["id"]
-            ),
-        )
 
 
 def create_checker_form(checker_id=None, on_save=None):
@@ -414,7 +270,7 @@ def create_checker_form(checker_id=None, on_save=None):
         # Task management section
         if checker_id:
             with use_scope("task_section"):
-                display_task_list(checker)
+                display_task_list(checker_id, checker["name"])
 
         put_buttons(
             [
@@ -433,6 +289,9 @@ def create_checker_form(checker_id=None, on_save=None):
                 return
             checker["enable_tasks"] = "Enable scheduled tasks" in features
             with use_scope("task_section", clear=True):
-                display_task_list(checker)
+                if "Enable scheduled tasks" in features:
+                    display_task_list(checker_id, checker["name"])
+                else:
+                    put_markdown("Enable scheduled tasks to manage automated tasks")
 
         pin_on_change("features", onchange=on_features_change)

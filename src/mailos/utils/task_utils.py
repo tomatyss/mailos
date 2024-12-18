@@ -1,14 +1,13 @@
-"""Task management utilities for scheduled email sending."""
+"""Task management utilities for automated task execution."""
 
 import json
-import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from croniter import croniter
 
+from mailos.tools import TOOL_MAP
 from mailos.utils.config_utils import load_config, save_config
-from mailos.utils.email_utils import send_email
 from mailos.utils.logger_utils import logger
 from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
@@ -50,91 +49,74 @@ def _initialize_llm(checker_config: Dict[str, Any]):
     return LLMFactory.create(**llm_args)
 
 
-def _parse_llm_response(response_text: str) -> Tuple[Optional[str], Optional[str]]:
-    """Parse LLM response to extract subject and body.
+def _parse_llm_response(response_text: str) -> Dict[str, Any]:
+    """Parse LLM response to extract action and parameters.
 
-    Handles various response formats:
-    1. JSON format: {"subject": "...", "body": "..."}
-    2. Markdown-like format:
-       Subject: ...
-       Body: ...
-    3. Direct format (subject and body separated by newlines)
+    Args:
+        response_text: Raw response from LLM
+
+    Returns:
+        Dictionary containing action type and parameters
     """
-    # Try JSON format first
     try:
         data = json.loads(response_text)
-        if isinstance(data, dict) and "subject" in data and "body" in data:
-            return data["subject"], data["body"]
+        if isinstance(data, dict) and "action" in data:
+            return data
     except json.JSONDecodeError:
         pass
 
-    # Try Markdown-like format
-    subject_match = re.search(r"(?:Subject|SUBJECT):\s*(.+?)(?:\n|$)", response_text)
-    body_match = re.search(
-        r"(?:Body|BODY):\s*(.+?)(?=(?:\n*Subject:|\n*$))", response_text, re.DOTALL
-    )
-
-    if subject_match and body_match:
-        return subject_match.group(1).strip(), body_match.group(1).strip()
-
-    # Try direct format (first line is subject, rest is body)
-    lines = response_text.strip().split("\n", 1)
-    if len(lines) >= 2:
-        return lines[0].strip(), lines[1].strip()
-    elif len(lines) == 1:
-        return lines[0].strip(), ""
-
-    logger.error("Could not parse LLM response into subject and body")
-    return None, None
+    logger.error("Could not parse LLM response into action and parameters")
+    return {}
 
 
-def create_task_prompt(task: Dict[str, Any], variables: Dict[str, Any]) -> str:
+def create_task_prompt(
+    task: Dict[str, Any], variables: Dict[str, Any], enabled_tools: List[Any]
+) -> str:
     """Create a prompt for the LLM based on the task data.
 
     Args:
         task: Task configuration dictionary
         variables: Variables to use in templates
+        enabled_tools: List of enabled tools for this checker
 
     Returns:
         Formatted prompt string for the LLM
     """
+    tools_description = ""
+    if enabled_tools:
+        tools_description = "You have access to the following tools:\n" + "\n".join(
+            f"- {tool.name}: {tool.description}" for tool in enabled_tools
+        )
+
     return f"""
-Context: You are processing email templates for a scheduled task. Here are the details:
+Context: You are processing a scheduled task. Here are the details:
 
-Task: {task['name']}
-Recipients: {', '.join(task['recipients'])}
-
-Please process these templates by replacing variables (enclosed in {{}}) with their
-values:
+Title: {task['title']}
+Description: {task['description']}
 
 Available variables:
 {json.dumps(variables, indent=2)}
 
-Subject template:
-{task['subject_template']}
+{tools_description}
 
-Body template:
-{task['body_template']}
-
-Please compose a professional and helpful email.
-Keep your response concise and relevant.
-
-Return the processed subject and body in this format:
-Subject: [processed subject]
-Body: [processed body]
-
-NOTE: YOUR RESPONSE WILL BE SENT TO THE RECIPIENTS DIRECTLY.
-DO NOT ADD ANY INFORMATION NOT RELEVANT TO THE TASK.
+Your task is to determine the appropriate action to take based on the task description.
 """
 
 
 class TaskManager:
-    """Manages scheduled email tasks for checkers."""
+    """Manages scheduled tasks."""
 
     @staticmethod
     def add_task(checker_id: str, task_config: Dict) -> bool:
         """Add a new task to a checker's configuration."""
         try:
+            # Validate required fields
+            required_fields = ["title", "description", "schedule"]
+            for field in required_fields:
+                if field not in task_config:
+                    logger.error(f"Missing required field: {field}")
+                    return False
+
             config = load_config()
             for checker in config["checkers"]:
                 if checker.get("id") == checker_id:
@@ -273,20 +255,28 @@ class TaskManager:
                 )
                 return False
 
-            # Process templates with LLM
+            # Setup enabled tools
+            enabled_tools = [
+                TOOL_MAP[tool_name]
+                for tool_name in checker_config.get("enabled_tools", [])
+                if tool_name in TOOL_MAP
+            ]
+
+            # Process task with LLM
             system_message = Message(
                 role=RoleType.SYSTEM,
                 content=[
                     Content(
                         type=ContentType.TEXT,
                         data=checker_config.get(
-                            "system_prompt", "You are a helpful email assistant."
+                            "system_prompt",
+                            "You are a helpful task automation assistant.",
                         ),
                     )
                 ],
             )
 
-            # Create prompt for processing templates
+            # Create prompt for processing task
             variables = task.get("variables", {})
             variables["timestamp"] = datetime.now().isoformat()
 
@@ -295,44 +285,45 @@ class TaskManager:
                 content=[
                     Content(
                         type=ContentType.TEXT,
-                        data=create_task_prompt(task, variables),
+                        data=create_task_prompt(task, variables, enabled_tools),
                     )
                 ],
             )
 
-            # Generate processed templates
+            # Generate action plan
             response = llm.generate_sync(
                 messages=[system_message, user_message],
                 stream=False,
+                tools=enabled_tools,
             )
 
             if not response or not response.content:
                 logger.error("Empty response from LLM")
                 return False
 
-            # Parse LLM response to get subject and body
-            subject, body = _parse_llm_response(response.content[0].data)
-            if not subject or not body:
+            # Parse LLM response to get action and parameters
+            action_data = _parse_llm_response(response.content[0].data)
+            if not action_data or "action" not in action_data:
                 logger.error("Failed to parse LLM response")
                 return False
 
-            # Send email to all recipients
-            smtp_server = checker_config["imap_server"].replace("imap", "smtp")
-            success = True
+            # Execute the appropriate tool
+            action = action_data["action"]
+            params = action_data.get("parameters", {})
 
-            for recipient in task["recipients"]:
-                if not send_email(
-                    smtp_server=smtp_server,
-                    smtp_port=465,  # Standard SSL port
-                    sender_email=checker_config["monitor_email"],
-                    password=checker_config["password"],
-                    recipient=recipient,
-                    subject=subject,
-                    body=body,
-                    email_data={},  # No original email for scheduled tasks
-                ):
-                    success = False
-                    logger.error(f"Failed to send task email to {recipient}")
+            # Find the tool in enabled tools
+            tool = next((t for t in enabled_tools if t.name == action), None)
+            if not tool:
+                logger.error(f"Tool {action} not found in enabled tools")
+                return False
+
+            try:
+                # Execute the tool with the provided parameters
+                result = tool.execute(**params)
+                success = True if result is not None else False
+            except Exception as e:
+                logger.error(f"Error executing tool {action}: {str(e)}")
+                success = False
 
             # Update last run timestamp
             if success:

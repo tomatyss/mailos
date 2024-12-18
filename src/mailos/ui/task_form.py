@@ -1,4 +1,4 @@
-"""UI functions for managing email tasks."""
+"""UI functions for managing automated tasks."""
 
 from pywebio.output import (
     close_popup,
@@ -36,21 +36,13 @@ def create_task_form(
 
     def submit_form():
         # Validate required fields
-        if (
-            not pin.task_name
-            or not pin.recipients
-            or not pin.subject_template
-            or not pin.body_template
-            or not pin.schedule
-        ):
-            toast("All fields are required", color="error")
+        if not pin.task_title or not pin.task_description or not pin.schedule:
+            toast("Title, description, and schedule are required", color="error")
             return
 
         task_config = {
-            "name": pin.task_name,
-            "recipients": [r.strip() for r in pin.recipients.split(",")],
-            "subject_template": pin.subject_template,
-            "body_template": pin.body_template,
+            "title": pin.task_title,
+            "description": pin.task_description,
             "schedule": pin.schedule,
             "enabled": True,  # Default to enabled
             "variables": {},  # Can be updated later
@@ -77,35 +69,23 @@ def create_task_form(
 
         # Task configuration fields
         put_input(
-            "task_name",
+            "task_title",
             type="text",
-            label="Task Name",
-            value=task.get("name", ""),
-            help_text="A descriptive name for this task",
-        )
-
-        put_input(
-            "recipients",
-            type="text",
-            label="Recipients (comma-separated)",
-            value=",".join(task.get("recipients", [])),
-            help_text="List of email addresses to send to",
-        )
-
-        put_input(
-            "subject_template",
-            type="text",
-            label="Subject Template",
-            value=task.get("subject_template", ""),
-            help_text="Template for email subject. Use {variable} for placeholders.",
+            label="Title",
+            value=task.get("title", ""),
+            help_text="A short, descriptive title for this task",
         )
 
         put_textarea(
-            "body_template",
-            label="Body Template",
-            value=task.get("body_template", ""),
+            "task_description",
+            label="Description",
+            value=task.get("description", ""),
             rows=5,
-            help_text="Template for email body. Use {variable} for placeholders.",
+            help_text=(
+                "Detailed description of what this task should do. The system will "
+                "analyze this description to determine which tool to use and how to "
+                "execute the task."
+            ),
         )
 
         put_input(
@@ -150,12 +130,11 @@ def display_task_list(checker_id: str, checker_name: str):
         else:
             for task in tasks:
                 with use_scope(f"task_{task['id']}"):
-                    put_markdown(f"#### {task['name']}")
-                    put_markdown(
-                        f"- Recipients: {', '.join(task['recipients'])}\n"
-                        f"- Schedule: {task['schedule']}\n"
-                        f"- Last Run: {task.get('last_run', 'Never')}"
-                    )
+                    put_markdown(f"#### {task['title']}")
+                    put_markdown(f"Description: {task['description']}")
+                    put_markdown(f"Schedule: {task['schedule']}")
+                    put_markdown(f"Last Run: {task.get('last_run', 'Never')}")
+
                     put_buttons(
                         [
                             {
