@@ -180,9 +180,6 @@ def display_task_list(checker):
     tasks = checker.get("tasks", [])
 
     with use_scope("task_section", clear=True):
-        if not checker.get("enable_tasks"):
-            return
-
         put_markdown("### Tasks")
 
         if tasks:
@@ -417,8 +414,7 @@ def create_checker_form(checker_id=None, on_save=None):
         # Task management section
         if checker_id:
             with use_scope("task_section"):
-                if "Enable scheduled tasks" in current_features:
-                    display_task_list(checker)
+                display_task_list(checker)
 
         put_buttons(
             [
@@ -437,7 +433,6 @@ def create_checker_form(checker_id=None, on_save=None):
                 return
             checker["enable_tasks"] = "Enable scheduled tasks" in features
             with use_scope("task_section", clear=True):
-                if "Enable scheduled tasks" in features:
-                    display_task_list(checker)
+                display_task_list(checker)
 
         pin_on_change("features", onchange=on_features_change)

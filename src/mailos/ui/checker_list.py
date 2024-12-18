@@ -79,6 +79,15 @@ def display_checker(checker, action_callback, status_filter=None):
         tools_text = "\n- No tools enabled"
         logger.debug(f"No tools enabled for checker {checker_id}")
 
+    # Create tasks section
+    tasks = checker.get("tasks", [])
+    tasks_text = ""
+    if tasks and checker.get("enable_tasks"):
+        task_list = [f"  • {task['name']} ({task['schedule']})" for task in tasks]
+        tasks_text = "\n- Scheduled Tasks:\n" + "\n".join(task_list)
+    elif checker.get("enable_tasks"):
+        tasks_text = "\n- No tasks configured"
+
     put_markdown(
         f"""
 #### {checker_name}
@@ -86,6 +95,7 @@ def display_checker(checker, action_callback, status_filter=None):
 - Email: {checker['monitor_email']}
 - IMAP Server: {checker['imap_server']}:{checker['imap_port']}
 - Auto-reply: {'✅ Enabled' if checker.get('auto_reply', False) else '❌ Disabled'}
+- Tasks: {tasks_text}
 - LLM Provider: {checker.get('llm_provider', 'Not configured')}
 - Model: {checker.get('model', 'Not configured')}{tools_text}
 - Last Run: {last_run}

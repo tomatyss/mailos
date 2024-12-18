@@ -160,16 +160,19 @@ def send_email(
             logger.warning("Email body was None, using empty string instead")
 
         # Combine AI response with quoted original message
-        full_message = (
-            f"{body}\n\n"
-            f"> -------- Original Message --------\n"
-            f"> Subject: {email_data.get('subject', '(No subject)')}\n"
-            f"> Date: {email_data.get('msg_date', '(No date)')}\n"
-            f"> From: {email_data.get('from', '(No sender)')}\n"
-            f"> Message-ID: {email_data.get('message_id', '(No ID)')}\n"
-            f">\n"
-            f"> {original_body.replace('\n', '\n> ')}"
-        )
+        if email_data is None or email_data == {}:
+            full_message = body
+        else:
+            full_message = (
+                f"{body}\n\n"
+                f"> -------- Original Message --------\n"
+                f"> Subject: {email_data.get('subject', '(No subject)')}\n"
+                f"> Date: {email_data.get('msg_date', '(No date)')}\n"
+                f"> From: {email_data.get('from', '(No sender)')}\n"
+                f"> Message-ID: {email_data.get('message_id', '(No ID)')}\n"
+                f">\n"
+                f"> {original_body.replace('\n', '\n> ')}"
+            )
 
         msg.attach(MIMEText(full_message, "plain"))
 
