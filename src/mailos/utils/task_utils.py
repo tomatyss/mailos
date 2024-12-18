@@ -132,21 +132,65 @@ class TaskManager:
     def delete_task(checker_id: str, task_id: str) -> bool:
         """Delete a task from a checker's configuration."""
         try:
-            config = load_config()
-            for checker in config["checkers"]:
-                if checker.get("id") == checker_id:
-                    tasks = checker.get("tasks", [])
-                    for i, task in enumerate(tasks):
-                        if task["id"] == task_id:
-                            tasks.pop(i)
-                            save_config(config)
-                            logger.info(
-                                f"Deleted task {task_id} from checker {checker_id}"
-                            )
-                            return True
+            logger.debug(
+                f"Attempting to delete task {task_id} from checker {checker_id}"
+            )
 
-            logger.warning(f"Task {task_id} not found in checker {checker_id}")
-            return False
+            config = load_config()
+            checker = None
+            checker_index = None
+
+            # Find checker
+            for i, c in enumerate(config["checkers"]):
+                if c.get("id") == checker_id:
+                    checker = c
+                    checker_index = i
+                    break
+
+            if not checker:
+                logger.warning(f"Checker {checker_id} not found")
+                return False
+
+            logger.debug(f"Found checker {checker_id}")
+
+            # Get current tasks
+            tasks = checker.get("tasks", [])
+            if not tasks:
+                logger.warning(f"No tasks found for checker {checker_id}")
+                return False
+
+            logger.debug(f"Current tasks: {[t['id'] for t in tasks]}")
+
+            # Find task index
+            task_index = None
+            for i, task in enumerate(tasks):
+                if task["id"] == task_id:
+                    task_index = i
+                    break
+
+            if task_index is None:
+                logger.warning(f"Task {task_id} not found in checker {checker_id}")
+                return False
+
+            # Remove task
+            removed_task = tasks.pop(task_index)
+            logger.debug(f"Removed task {removed_task['id']}")
+
+            # Update checker's tasks
+            checker["tasks"] = tasks
+            config["checkers"][checker_index] = checker
+
+            logger.debug(f"Remaining tasks: {[t['id'] for t in checker['tasks']]}")
+
+            # Save updated config
+            if save_config(config):
+                logger.info(
+                    f"Successfully deleted task {task_id} from checker {checker_id}"
+                )
+                return True
+            else:
+                logger.error("Failed to save config after deleting task")
+                return False
 
         except Exception as e:
             logger.error(f"Error deleting task: {e}")

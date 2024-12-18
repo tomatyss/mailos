@@ -10,6 +10,7 @@ from pywebio.output import (
 )
 from pywebio.pin import pin, put_input, put_textarea
 
+from mailos.utils.config_utils import load_config
 from mailos.utils.logger_utils import logger
 from mailos.utils.task_utils import TaskManager
 
@@ -112,6 +113,76 @@ def create_task_form(
         )
 
 
+def refresh_task_list(checker_id: str):
+    """Refresh the task list display.
+
+    Args:
+        checker_id: ID of the checker
+    """
+    config = load_config()
+    for checker in config["checkers"]:
+        if checker.get("id") == checker_id:
+            with use_scope("task_section", clear=True):
+                display_task_list(checker_id, checker["name"])
+            break
+
+
+def handle_task_action(action: str, checker_id: str, task_id: str = None):
+    """Handle task management actions.
+
+    Args:
+        action: The action to perform ('add', 'edit', or 'delete')
+        checker_id: ID of the checker
+        task_id: ID of the task (required for edit/delete actions)
+    """
+    logger.debug(
+        f"Handling task action: {action} for checker {checker_id} task {task_id}"
+    )
+
+    if action == "edit":
+
+        def on_task_save():
+            refresh_task_list(checker_id)
+
+        task = TaskManager.get_task(checker_id, task_id)
+        if task:
+            create_task_form(
+                checker_id,
+                task["title"],
+                task_id,
+                on_save=on_task_save,
+            )
+        else:
+            toast("Task not found", color="error")
+
+    elif action == "delete":
+        logger.debug(f"Attempting to delete task {task_id} from checker {checker_id}")
+        if TaskManager.delete_task(checker_id, task_id):
+            toast("Task deleted successfully")
+            # Refresh task list
+            refresh_task_list(checker_id)
+            return True
+        else:
+            toast("Failed to delete task", color="error")
+
+    elif action == "add":
+
+        def on_task_save():
+            refresh_task_list(checker_id)
+
+        config = load_config()
+        checker_name = None
+        for c in config["checkers"]:
+            if c.get("id") == checker_id:
+                checker_name = c["name"]
+                break
+
+        if checker_name:
+            create_task_form(checker_id, checker_name, on_save=on_task_save)
+        else:
+            toast("Checker not found", color="error")
+
+
 def display_task_list(checker_id: str, checker_name: str):
     """Display list of tasks for a checker with management options.
 
@@ -120,6 +191,7 @@ def display_task_list(checker_id: str, checker_name: str):
         checker_name: Name of the checker for display
     """
     tasks = TaskManager.get_tasks(checker_id)
+    logger.debug(f"Displaying tasks for checker {checker_id}: {len(tasks)} tasks found")
 
     with use_scope("tasks", clear=True):
         put_markdown(f"### Scheduled Tasks for {checker_name}")
@@ -135,6 +207,10 @@ def display_task_list(checker_id: str, checker_name: str):
                     put_markdown(f"Schedule: {task['schedule']}")
                     put_markdown(f"Last Run: {task.get('last_run', 'Never')}")
 
+                    # Create button handlers that accept the button value
+                    def create_handler(action: str, tid: str):
+                        return lambda _: handle_task_action(action, checker_id, tid)
+
                     put_buttons(
                         [
                             {
@@ -148,34 +224,15 @@ def display_task_list(checker_id: str, checker_name: str):
                                 "color": "danger",
                             },
                         ],
-                        onclick=lambda val, task_id=task["id"]: handle_task_action(
-                            val, checker_id, checker_name, task_id
-                        ),
+                        onclick=[
+                            create_handler("edit", task["id"]),
+                            create_handler("delete", task["id"]),
+                        ],
                     )
                     put_markdown("---")  # Separator between tasks
 
+        # Add task button with proper value handling
         put_buttons(
             [{"label": "Add Task", "value": "add", "color": "success"}],
-            onclick=lambda _: create_task_form(
-                checker_id,
-                checker_name,
-                on_save=lambda: display_task_list(checker_id, checker_name),
-            ),
+            onclick=lambda _: handle_task_action("add", checker_id),
         )
-
-
-def handle_task_action(action: str, checker_id: str, checker_name: str, task_id: str):
-    """Handle task management actions."""
-    if action == "edit":
-        create_task_form(
-            checker_id,
-            checker_name,
-            task_id,
-            on_save=lambda: display_task_list(checker_id, checker_name),
-        )
-    elif action == "delete":
-        if TaskManager.delete_task(checker_id, task_id):
-            toast("Task deleted successfully")
-            display_task_list(checker_id, checker_name)
-        else:
-            toast("Failed to delete task", color="error")

@@ -18,60 +18,27 @@ from pywebio.pin import (
 )
 
 from mailos.tools import AVAILABLE_TOOLS
-from mailos.ui.task_form import create_task_form, display_task_list
+from mailos.ui.task_form import display_task_list
 from mailos.utils.config_utils import load_config, save_config
 from mailos.utils.logger_utils import logger
-from mailos.utils.task_utils import TaskManager
 from mailos.vendors.config import VENDOR_CONFIGS
 from mailos.vendors.factory import LLMFactory
 
 
-def handle_task_action(action: str, checker_id: str, task_id: str = None):
-    """Handle task-related actions."""
+def get_checker_name(checker_id: str) -> str:
+    """Get the current name of a checker from config.
+
+    Args:
+        checker_id: The ID of the checker
+
+    Returns:
+        The checker's name, or None if not found
+    """
     config = load_config()
-    checker = None
     for c in config["checkers"]:
         if c.get("id") == checker_id:
-            checker = c
-            break
-
-    if not checker:
-        toast("Checker not found", color="error")
-        return
-
-    if action == "add":
-
-        def on_task_save():
-            # Refresh task list
-            config = load_config()
-            for c in config["checkers"]:
-                if c.get("id") == checker_id:
-                    display_task_list(checker_id, c["name"])
-                    break
-
-        create_task_form(checker_id, checker["name"], on_save=on_task_save)
-    elif action == "edit":
-
-        def on_task_save():
-            # Refresh task list
-            config = load_config()
-            for c in config["checkers"]:
-                if c.get("id") == checker_id:
-                    display_task_list(checker_id, c["name"])
-                    break
-
-        create_task_form(checker_id, checker["name"], task_id, on_save=on_task_save)
-    elif action == "delete":
-        if TaskManager.delete_task(checker_id, task_id):
-            toast("Task deleted successfully")
-            # Refresh task list
-            config = load_config()
-            for c in config["checkers"]:
-                if c.get("id") == checker_id:
-                    display_task_list(checker_id, c["name"])
-                    break
-        else:
-            toast("Failed to delete task", color="error")
+            return c["name"]
+    return None
 
 
 def create_checker_form(checker_id=None, on_save=None):
@@ -114,7 +81,11 @@ def create_checker_form(checker_id=None, on_save=None):
     # Get currently enabled tools
     current_tools = checker.get("enabled_tools", [])
 
-    def submit_form():
+    def submit_form(val):
+        if val != "save":
+            close_popup()
+            return
+
         # Create checker config from form data
         checker_config = {
             "name": pin.checker_name,
@@ -133,6 +104,7 @@ def create_checker_form(checker_id=None, on_save=None):
 
         if checker_id:
             # Update existing checker
+            config = load_config()  # Get fresh config
             for c in config["checkers"]:
                 if c.get("id") == checker_id:
                     # Preserve existing tasks and last_run
@@ -150,10 +122,20 @@ def create_checker_form(checker_id=None, on_save=None):
             checker_config["tasks"] = []
             config["checkers"].append(checker_config)
 
-        save_config(config)
-        if on_save:
-            on_save(checker_id)
-        close_popup()
+        # Save config and refresh task list if needed
+        if save_config(config):
+            if checker_id and checker_config["enable_tasks"]:
+                # Get fresh checker name from config
+                checker_name = get_checker_name(checker_id)
+                if checker_name:
+                    with use_scope("task_section", clear=True):
+                        display_task_list(checker_id, checker_name)
+
+            if on_save:
+                on_save(checker_id)
+            close_popup()
+        else:
+            toast("Failed to save checker configuration", color="error")
 
     with popup(f"{'Edit' if checker_id else 'New'} Email Checker", size="large"):
         put_markdown(f"### {'Edit' if checker_id else 'New'} Email Checker")
@@ -270,14 +252,17 @@ def create_checker_form(checker_id=None, on_save=None):
         # Task management section
         if checker_id:
             with use_scope("task_section"):
-                display_task_list(checker_id, checker["name"])
+                # Get fresh checker name from config
+                checker_name = get_checker_name(checker_id)
+                if checker_name:
+                    display_task_list(checker_id, checker_name)
 
         put_buttons(
             [
                 {"label": "Save", "value": "save", "color": "success"},
                 {"label": "Cancel", "value": "cancel", "color": "secondary"},
             ],
-            onclick=lambda val: submit_form() if val == "save" else close_popup(),
+            onclick=submit_form,
         )
 
         # Register provider change handler
@@ -287,10 +272,14 @@ def create_checker_form(checker_id=None, on_save=None):
         def on_features_change(features):
             if not checker_id:
                 return
+
             checker["enable_tasks"] = "Enable scheduled tasks" in features
             with use_scope("task_section", clear=True):
                 if "Enable scheduled tasks" in features:
-                    display_task_list(checker_id, checker["name"])
+                    # Get fresh checker name from config
+                    checker_name = get_checker_name(checker_id)
+                    if checker_name:
+                        display_task_list(checker_id, checker_name)
                 else:
                     put_markdown("Enable scheduled tasks to manage automated tasks")
 
