@@ -45,13 +45,21 @@ def send_email(
             }
 
         # Get SMTP settings from checker config
-        smtp_server = checker["imap_server"].replace("imap", "smtp")
-        smtp_port = 465  # Standard SSL port
+        smtp_server = checker.get("smtp_server")
+        smtp_port = checker.get("smtp_port")
+        use_tls = checker.get("smtp_use_tls", False)
+
+        if not smtp_server or not smtp_port:
+            return {
+                "status": "error",
+                "message": "SMTP server and port must be configured",
+            }
 
         # Send email using the utility function
         success = send_email_util(
             smtp_server=smtp_server,
             smtp_port=smtp_port,
+            use_tls=use_tls,
             sender_email=checker["monitor_email"],
             password=checker["password"],
             recipient=to,

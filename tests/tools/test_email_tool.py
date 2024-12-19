@@ -17,6 +17,9 @@ def mock_config():
                 "monitor_email": "test@example.com",
                 "imap_server": "imap.example.com",
                 "password": "test-password",
+                "smtp_server": "smtp.example.com",
+                "smtp_port": 465,
+                "smtp_use_tls": True,
             }
         ]
     }
@@ -55,6 +58,7 @@ def test_send_email_success(mock_load_config, mock_send_email):
     call_args = mock_send_email.call_args[1]
     assert call_args["smtp_server"] == "smtp.example.com"
     assert call_args["smtp_port"] == 465
+    assert call_args["use_tls"] is True
     assert call_args["sender_email"] == "test@example.com"
     assert call_args["password"] == "test-password"
     assert call_args["recipient"] == "recipient@example.com"
@@ -80,6 +84,7 @@ def test_send_email_with_attachments(mock_load_config, mock_send_email):
     call_args = mock_send_email.call_args[1]
     assert call_args["smtp_server"] == "smtp.example.com"
     assert call_args["smtp_port"] == 465
+    assert call_args["use_tls"] is True
     assert call_args["sender_email"] == "test@example.com"
     assert call_args["password"] == "test-password"
     assert call_args["recipient"] == "recipient@example.com"

@@ -93,6 +93,9 @@ def create_checker_form(checker_id=None, on_save=None):
             "password": pin.password,
             "imap_server": pin.imap_server,
             "imap_port": pin.imap_port,
+            "smtp_server": pin.smtp_server,
+            "smtp_port": pin.smtp_port,
+            "smtp_use_tls": "Use TLS for SMTP" in getattr(pin, "smtp_use_tls", []),
             "llm_provider": pin.llm_provider,
             "model": pin.model,
             "system_prompt": pin.system_prompt,
@@ -179,6 +182,28 @@ def create_checker_form(checker_id=None, on_save=None):
             type="number",
             label="IMAP Port",
             value=checker.get("imap_port", 993),
+        )
+
+        # Add SMTP configuration
+        put_input(
+            "smtp_server",
+            type="text",
+            label="SMTP Server",
+            value=checker.get("smtp_server", "localhost"),
+        )
+
+        put_input(
+            "smtp_port",
+            type="number",
+            label="SMTP Port",
+            value=checker.get("smtp_port", 25),
+        )
+
+        put_checkbox(
+            "smtp_use_tls",
+            options=["Use TLS for SMTP"],
+            value=["Use TLS for SMTP"] if checker.get("smtp_use_tls", False) else [],
+            inline=True,
         )
 
         put_checkbox(
