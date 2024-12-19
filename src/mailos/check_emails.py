@@ -21,9 +21,15 @@ def check_emails(checker_config):
     """Check emails for a given checker configuration."""
     try:
         logger.info(f"Connecting to {checker_config['imap_server']}...")
-        mail = imaplib.IMAP4_SSL(
-            checker_config["imap_server"], checker_config["imap_port"]
-        )
+        # Use non-SSL for test environment (localhost)
+        if checker_config["imap_server"] == "localhost":
+            mail = imaplib.IMAP4(
+                checker_config["imap_server"], checker_config["imap_port"]
+            )
+        else:
+            mail = imaplib.IMAP4_SSL(
+                checker_config["imap_server"], checker_config["imap_port"]
+            )
         mail.login(checker_config["monitor_email"], checker_config["password"])
 
         logger.info("Connected successfully")

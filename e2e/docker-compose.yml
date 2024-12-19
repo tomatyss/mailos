@@ -1,18 +1,13 @@
-version: '3.8'
-
 services:
   e2e:
     build:
-      context: ..
-      dockerfile: e2e/Dockerfile
-    ports:
-      - "25:25"  # SMTP
+      context: .
+      dockerfile: Dockerfile.e2e
     volumes:
-      - ..:/app
+      - ../attachments:/app/attachments  # Sync attachments directory
+      - ../src:/app/src  # Mount source code for live updates
     environment:
       - PYTHONPATH=/app
-      - MAILOS_ENV=test
     env_file:
       - ../.env
       - .env
-    command: tail -f /dev/null  # Keep container running

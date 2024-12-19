@@ -1,4 +1,4 @@
-.PHONY: install format lint test test-cov test-watch test-html clean
+.PHONY: install format lint test test-cov test-watch test-html clean e2e-build e2e-up e2e-down e2e-logs e2e-clean
 
 install:
 	pip install -e ".[dev]"
@@ -34,3 +34,20 @@ clean:
 	rm -rf *.egg-info
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
+
+# E2E Testing Commands
+e2e-build:
+	docker-compose -f e2e/docker-compose.yml build
+
+e2e-up:
+	docker-compose -f e2e/docker-compose.yml up
+
+e2e-down:
+	docker-compose -f e2e/docker-compose.yml down
+
+e2e-logs:
+	docker-compose -f e2e/docker-compose.yml logs -f
+
+e2e-clean: e2e-down
+	docker-compose -f e2e/docker-compose.yml down -v --remove-orphans
+	docker system prune -f --filter "label=com.docker.compose.project=e2e"

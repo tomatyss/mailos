@@ -1,0 +1,62 @@
+FROM python:3.13-slim
+
+# Install system dependencies including Postfix and Dovecot
+RUN apt-get update && apt-get install -y \
+    postfix \
+    dovecot-imapd \
+    libsasl2-modules \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up Postfix for local mail delivery
+RUN postconf -e 'inet_interfaces = all' \
+    && postconf -e 'mydestination = localhost.localdomain, localhost' \
+    && postconf -e 'mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128' \
+    && postconf -e 'maillog_file = /var/log/postfix.log'
+
+# Configure Dovecot
+RUN sed -i 's/#disable_plaintext_auth = yes/disable_plaintext_auth = no/' /etc/dovecot/conf.d/10-auth.conf \
+    && sed -i 's/#mail_location =/mail_location = mbox:~\/mail:INBOX=\/var\/mail\/%u/' /etc/dovecot/conf.d/10-mail.conf \
+    && sed -i 's/\#listen = \*, \:\:/listen = */' /etc/dovecot/conf.d/10-master.conf \
+    && sed -i 's/ssl = yes/ssl = no/' /etc/dovecot/conf.d/10-ssl.conf
+
+# Create test users and mail directories
+RUN useradd -m weather && echo "weather:test_password" | chpasswd \
+    && useradd -m pdf && echo "pdf:test_password" | chpasswd \
+    && useradd -m python && echo "python:test_password" | chpasswd \
+    && useradd -m bash && echo "bash:test_password" | chpasswd \
+    && useradd -m arxiv && echo "arxiv:test_password" | chpasswd \
+    && useradd -m websearch && echo "websearch:test_password" | chpasswd \
+    && useradd -m task && echo "task:test_password" | chpasswd
+
+# Create mail directories and set permissions
+RUN mkdir -p /var/mail && chmod 777 /var/mail \
+    && for user in weather pdf python bash arxiv websearch task; do \
+       touch /var/mail/$user && chown $user:$user /var/mail/$user && chmod 660 /var/mail/$user; \
+    done
+
+# Create directory for the local package
+WORKDIR /app
+
+# Copy only necessary files from parent directory
+COPY ../src /app/src
+COPY ../setup.cfg /app/setup.cfg
+COPY ../pyproject.toml /app/pyproject.toml
+COPY ../requirements.txt /app/requirements.txt
+COPY ../MANIFEST.in /app/MANIFEST.in
+
+# Install the package in development mode and dependencies
+RUN pip install -e .
+
+# Create directories with proper permissions
+RUN mkdir -p /app/attachments && chmod 777 /app/attachments \
+    && mkdir -p /app/e2e && chmod 777 /app/e2e
+
+# Copy config file into container
+COPY email_config.json /app/e2e/
+RUN chmod 644 /app/e2e/email_config.json
+
+# Start script to run services and mailos
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["docker-entrypoint.sh"]
