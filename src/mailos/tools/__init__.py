@@ -2,6 +2,7 @@
 
 from .arxiv_tool import arxiv_tool
 from .bash_command import bash_command_tool
+from .csv_tool import append_csv_tool, create_csv_tool, read_csv_tool, update_csv_tool
 from .email_review_tool import email_review_tool
 from .email_tool import email_tool
 from .pdf_tool import (
@@ -29,6 +30,10 @@ AVAILABLE_TOOLS = [
     ("arxiv_tool", "ArXiv Paper Search"),
     ("email_tool", "Send Email"),
     ("email_review_tool", "Review Emails"),
+    ("create_csv_tool", "Create CSV"),
+    ("read_csv_tool", "Read CSV"),
+    ("update_csv_tool", "Update CSV"),
+    ("append_csv_tool", "Append to CSV"),
 ]
 
 # Map of tool names to actual tool objects
@@ -45,6 +50,10 @@ TOOL_MAP = {
     "arxiv_tool": arxiv_tool,
     "email_tool": email_tool,
     "email_review_tool": email_review_tool,
+    "create_csv_tool": create_csv_tool,
+    "read_csv_tool": read_csv_tool,
+    "update_csv_tool": update_csv_tool,
+    "append_csv_tool": append_csv_tool,
 }
 
 __all__ = [
@@ -60,6 +69,10 @@ __all__ = [
     "arxiv_tool",
     "email_tool",
     "email_review_tool",
+    "create_csv_tool",
+    "read_csv_tool",
+    "update_csv_tool",
+    "append_csv_tool",
     "AVAILABLE_TOOLS",
     "TOOL_MAP",
 ]
