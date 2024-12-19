@@ -16,8 +16,7 @@ def create_system_prompt(checker_config: Dict[str, Any]) -> str:
         Formatted system prompt string
     """
     base_prompt = (
-        f"You are a helpful AI assistant managing tasks and emails for "
-        f"{checker_config['monitor_email']}. "
+        f"Your email is {checker_config['monitor_email']}. "
         f"When using tools, always use checker_id='{checker_config['id']}' "
         f"to ensure operations are performed using the correct configuration."
     )
@@ -87,7 +86,7 @@ def create_email_prompt(
                 f"- {tool.name}: {tool.description}" for tool in available_tools
             )
             + f"\n\nIMPORTANT: When using tools that create files (like create_pdf), "
-            f"you MUST use the sender's email address ({email_data['from']}) as the "
+            f"you MUST use the sender's email address ({email_data['sender']}) as the "
             f"sender_email parameter. This ensures files are saved in the correct "
             f"directory and will be properly attached to your response email."
         )
@@ -102,7 +101,7 @@ def create_email_prompt(
     return f"""
 Context: You are responding to an email. Here are the details:{image_context}
 
-From: {email_data['from']}
+From: {email_data['sender']}
 Subject: {email_data['subject']}
 Message: {email_data['body']}
 

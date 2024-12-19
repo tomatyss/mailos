@@ -5,6 +5,7 @@ This module provides a web interface for managing email monitoring configuration
 using PyWebIO.
 """
 
+import threading
 import uuid
 from dataclasses import dataclass
 from typing import Dict, List, Optional
@@ -24,6 +25,32 @@ from mailos.utils.logger_utils import logger, parse_log_level, set_log_level
 from mailos.vendors.config import VENDOR_CONFIGS
 
 scheduler = None
+scheduler_thread = None
+
+
+def start_scheduler_thread():
+    """Start the scheduler in a separate thread."""
+    global scheduler, scheduler_thread
+
+    if scheduler_thread and scheduler_thread.is_alive():
+        logger.info("Scheduler thread is already running")
+        return
+
+    def run_scheduler():
+        """Run the scheduler and handle shutdown."""
+        try:
+            scheduler = init_scheduler()
+            check_emails_main()  # Run initial check
+            scheduler._thread.join()
+        except (KeyboardInterrupt, SystemExit):
+            if scheduler:
+                logger.info("Shutting down scheduler...")
+                scheduler.shutdown()
+                logger.info("Scheduler shutdown complete")
+
+    scheduler_thread = threading.Thread(target=run_scheduler, daemon=False)
+    scheduler_thread.start()
+    logger.info("Started scheduler thread")
 
 
 @dataclass
@@ -165,11 +192,6 @@ def ensure_checker_ids(config: Dict) -> bool:
 @require_auth
 def check_email_app():
     """Run the main web application."""
-    global scheduler
-    if not scheduler:
-        logger.info("Initializing scheduler...")
-        scheduler = init_scheduler()
-
     put_markdown("# MailOS")
 
     # Add header with settings button
@@ -217,11 +239,13 @@ def run_headless(config_path: Optional[str] = None, log_level: str = "info") -> 
         logger.info(f"Using custom config file: {config_path}")
         set_config_file(config_path)
 
-    # Initialize scheduler and run
+    # Start the scheduler thread
     logger.info("Starting headless mode")
-    scheduler = init_scheduler()
-    check_emails_main()
-    scheduler.start()
+    start_scheduler_thread()
+
+    # Block on the scheduler thread
+    if scheduler_thread:
+        scheduler_thread.join()
 
 
 def cli():
@@ -255,20 +279,25 @@ def cli():
             config: Optional path to custom configuration file
             headless: Whether to run in headless mode
         """
+        # Set up logging
+        level = parse_log_level(log_level)
+        set_log_level(level)
+
+        # Set custom config file if provided
+        if config:
+            logger.info(f"Using custom config file: {config}")
+            set_config_file(config)
+
+        # Start the scheduler thread in both modes
+        start_scheduler_thread()
+
         if headless:
-            run_headless(config, log_level)
+            # In headless mode, block on the scheduler thread
+            if scheduler_thread:
+                scheduler_thread.join()
         else:
-            # Use our logger_utils functions to set the log level
-            level = parse_log_level(log_level)
-            set_log_level(level)
-
-            # Set custom config file if provided
-            if config:
-                logger.info(f"Using custom config file: {config}")
-                set_config_file(config)
-
-            logger.debug("Starting application with log level: %s", log_level)
-            init_scheduler()
+            # In normal mode, start the web server
+            logger.debug("Starting web application with log level: %s", log_level)
             start_server(check_email_app, port=8080, debug=True)
 
     run()
