@@ -290,6 +290,8 @@ class TaskManager:
                 tools=enabled_tools,
             )
 
+            logger.debug(f"Task LLM response: {response}")
+
             if not response or not response.content:
                 logger.error("Empty response from LLM")
                 return False
