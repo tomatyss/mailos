@@ -36,11 +36,8 @@ clean:
 	find . -type f -name "*.pyc" -delete
 
 # E2E Testing Commands
-e2e-build:
-	docker-compose -f e2e/docker-compose.yml build
-
 e2e-up:
-	docker-compose -f e2e/docker-compose.yml up
+	docker-compose -f e2e/docker-compose.yml up --build -d
 
 e2e-down:
 	docker-compose -f e2e/docker-compose.yml down

@@ -38,11 +38,12 @@ RUN mkdir -p /var/mail && chmod 777 /var/mail \
 WORKDIR /app
 
 # Copy only necessary files from parent directory
-COPY ../src /app/src
-COPY ../setup.cfg /app/setup.cfg
-COPY ../pyproject.toml /app/pyproject.toml
-COPY ../requirements.txt /app/requirements.txt
-COPY ../MANIFEST.in /app/MANIFEST.in
+COPY src /app/src
+COPY setup.cfg /app/setup.cfg
+COPY pyproject.toml /app/pyproject.toml
+COPY requirements.txt /app/requirements.txt
+COPY MANIFEST.in /app/MANIFEST.in
+COPY e2e/email_config.json /app/email_config.json
 
 # Install the package in development mode and dependencies
 RUN pip install -e .
@@ -56,7 +57,7 @@ COPY email_config.json /app/e2e/
 RUN chmod 644 /app/e2e/email_config.json
 
 # Start script to run services and mailos
-COPY docker-entrypoint.sh /usr/local/bin/
+COPY e2e/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["docker-entrypoint.sh"]

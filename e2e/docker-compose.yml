@@ -1,8 +1,8 @@
 services:
   e2e:
     build:
-      context: .
-      dockerfile: Dockerfile.e2e
+      context: ..
+      dockerfile: e2e/Dockerfile.e2e
     volumes:
       - ../attachments:/app/attachments  # Sync attachments directory
       - ../src:/app/src  # Mount source code for live updates

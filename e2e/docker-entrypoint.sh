@@ -19,7 +19,7 @@ echo "Continuing with startup..."
 # Start mailos in headless mode with the test config
 if [ -f "/app/e2e/email_config.json" ]; then
   echo "Starting mailos in headless mode with test config..."
-  python -m mailos.app --headless --config /app/e2e/email_config.json --log-level debug
+  mailos --headless --log-level debug
 else
   echo "Error: Test config file not found"
   exit 1
