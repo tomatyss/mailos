@@ -5,6 +5,6 @@ openai==1.61.1
 anthropic==0.45.2
 aioboto3==14.1.0
 PyPDF2==3.0.1
-reportlab==4.3.0
+reportlab==4.3.1
 beautifulsoup4==4.13.3
 arxiv==2.1.3
