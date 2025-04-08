@@ -1,4 +1,4 @@
-pywebio==1.8.3
+pywebio==1.8.4
 apscheduler==3.11.0
 python-dotenv==1.0.1
 openai==1.68.2
