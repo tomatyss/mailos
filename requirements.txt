@@ -1,6 +1,6 @@
 pywebio==1.8.4
 apscheduler==3.11.0
-python-dotenv==1.1.0
+python-dotenv==1.2.1
 openai==2.6.1
 anthropic==0.72.0
 aioboto3==15.4.0
