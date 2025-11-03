@@ -7,4 +7,4 @@ aioboto3==15.4.0
 PyPDF2==3.0.1
 reportlab==4.4.4
 beautifulsoup4==4.13.4
-arxiv==2.1.3
+arxiv==2.3.0
